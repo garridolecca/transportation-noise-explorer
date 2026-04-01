@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USA Transportation Noise Explorer</title>
+
+  <!-- ArcGIS Maps SDK 5.0 (unified: Core + Calcite + all components) -->
+  <script type="module" src="https://js.arcgis.com/5.0/"></script>
+  <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/dark/main.css" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+
+    calcite-shell {
+      --calcite-color-brand: #0079c1;
+    }
+
+    #viewDiv {
+      width: 100%;
+      height: 100%;
+      background: #1a1a2e;
+    }
+
+    /* Navigation branding */
+    .nav-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      color: #fff;
+    }
+    .nav-title h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: 0.3px;
+    }
+    .nav-title span {
+      font-size: 12px;
+      color: #a3b8cc;
+      font-weight: 400;
+    }
+
+    /* Legend color bar */
+    .noise-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 0;
+    }
+    .legend-bar {
+      height: 18px;
+      border-radius: 4px;
+      background: linear-gradient(to right,
+        #1a9850, #66bd63, #a6d96a, #d9ef8b,
+        #fee08b, #fdae61, #f46d43, #d73027, #a50026);
+    }
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #a3b8cc;
+      padding: 0 2px;
+    }
+
+    /* Stats cards */
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 8px 0;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #8899aa;
+      margin-top: 2px;
+    }
+
+    /* Info text */
+    .info-text {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #a3b8cc;
+      padding: 4px 0;
+    }
+    .info-text strong {
+      color: #cdd9e5;
+    }
+
+    /* Noise level reference */
+    .noise-ref {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px 0;
+    }
+    .noise-ref-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #a3b8cc;
+    }
+    .noise-ref-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Opacity display */
+    .opacity-value {
+      font-size: 13px;
+      color: #fff;
+      font-weight: 600;
+      text-align: right;
+      min-width: 36px;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .slider-row calcite-slider {
+      flex: 1;
+    }
+
+    /* Coordinate display */
+    #coordDisplay {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 25, 35, 0.85);
+      backdrop-filter: blur(8px);
+      color: #a3b8cc;
+      font-size: 11px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Pixel info popup */
+    #pixelInfo {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(20, 25, 35, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: #fff;
+      z-index: 10;
+      display: none;
+      min-width: 160px;
+    }
+    #pixelInfo .pi-title {
+      font-size: 11px;
+      color: #8899aa;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    #pixelInfo .pi-value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    #pixelInfo .pi-unit {
+      font-size: 13px;
+      color: #a3b8cc;
+      font-weight: 400;
+    }
+    #pixelInfo .pi-desc {
+      font-size: 12px;
+      color: #a3b8cc;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+
+<body class="calcite-mode-dark">
+  <calcite-shell>
+
+    <!-- Header -->
+    <calcite-navigation slot="header">
+      <div class="nav-title" slot="logo">
+        <calcite-icon icon="sound-level" scale="l"></calcite-icon>
+        <div>
+          <h1>USA Transportation Noise Explorer</h1>
+          <span>Rail, Road & Aviation Noise Levels (2020)</span>
+        </div>
+      </div>
+      <calcite-action-pad slot="content-end" layout="horizontal" expand-disabled>
+        <calcite-action id="btnBasemapToggle" icon="basemap" text="Toggle Basemap"></calcite-action>
+        <calcite-action id="btnHomeExtent" icon="home" text="Home Extent"></calcite-action>
+      </calcite-action-pad>
+    </calcite-navigation>
+
+    <!-- Left Panel -->
+    <calcite-shell-panel slot="panel-start" width-scale="m" position="start">
+      <calcite-panel heading="Noise Analysis" description="Transportation noise impact across the US">
+
+        <!-- Stats -->
+        <calcite-block heading="Data Overview" open collapsible>
+          <calcite-icon icon="graph-bar" slot="icon" scale="s"></calcite-icon>
+          <div class="stat-row">
+            <div class="stat-card">
+              <div class="stat-value">45</div>
+              <div class="stat-label">Min dB</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">124</div>
+              <div class="stat-label">Max dB</div>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-card">
+              <div class="stat-value">30m</div>
+              <div class="stat-label">Resolution</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">2020</div>
+              <div class="stat-label">Year</div>
+            </div>
+          </div>
+        </calcite-block>
+
+        <!-- Legend -->
+        <calcite-block heading="Noise Level (dB)" open collapsible>
+          <calcite-icon icon="legend" slot="icon" scale="s"></calcite-icon>
+          <div class="noise-legend">
+            <div class="legend-bar"></div>
+            <div class="legend-labels">
+              <span>45 dB</span>
+              <span>65</span>
+              <span>85</span>
+              <span>105</span>
+              <span>124 dB</span>
+            </div>
+          </div>
+        </calcite-block>
+
+        <!-- Reference -->
+        <calcite-block heading="Noise Reference" collapsible>
+          <calcite-icon icon="information" slot="icon" scale="s"></calcite-icon>
+          <div class="noise-ref">
+            <div class="noise-ref-item">
+              <div class="noise-ref-dot" style="background:#1a9850"></div>
+              <span>45-55 dB - Quiet suburb, bird calls</span>
+            </div>
+            <div class="noise-ref-item">
+              <div class="noise-ref-dot" style="background:#a6d96a"></div>
+              <span>55-65 dB - Normal conversation</span>
+            </div>
+            <div class="noise-ref-item">
+              <div class="noise-ref-dot" style="background:#fee08b"></div>
+              <span>65-75 dB - Busy traffic, vacuum cleaner</span>
+            </div>
+            <div class="noise-ref-item">
+              <div class="noise-ref-dot" style="background:#f46d43"></div>
+              <span>75-85 dB - Heavy traffic, loud restaurant</span>
+            </div>
+            <div class="noise-ref-item">
+              <div class="noise-ref-dot" style="background:#d73027"></div>
+              <span>85-100 dB - Motorcycle, power tools</span>
+            </div>
+            <div class="noise-ref-item">
+              <div class="noise-ref-dot" style="background:#a50026"></div>
+              <span>100+ dB - Jet takeoff, risk of hearing damage</span>
+            </div>
+          </div>
+        </calcite-block>
+
+        <!-- Layer Controls -->
+        <calcite-block heading="Layer Controls" open collapsible>
+          <calcite-icon icon="sliders-horizontal" slot="icon" scale="s"></calcite-icon>
+
+          <calcite-label layout="inline-space-between">
+            Show Noise Layer
+            <calcite-switch id="toggleLayer" checked></calcite-switch>
+          </calcite-label>
+
+          <calcite-label style="margin-top: 10px;">
+            Layer Opacity
+            <div class="slider-row">
+              <calcite-slider id="opacitySlider" min="0" max="100" value="80" step="5"
+                label-handles label-ticks ticks="25" snap></calcite-slider>
+              <span class="opacity-value" id="opacityLabel">80%</span>
+            </div>
+          </calcite-label>
+        </calcite-block>
+
+        <!-- About -->
+        <calcite-block heading="About" collapsible>
+          <calcite-icon icon="information-letter" slot="icon" scale="s"></calcite-icon>
+          <p class="info-text">
+            This map visualizes <strong>transportation noise levels</strong> across the
+            United States from rail, road, and aviation sources (2020 data).
+            Noise is measured in <strong>decibels (dB)</strong> at ~30m pixel resolution.
+            Click anywhere on the noise layer to inspect the local noise value.
+          </p>
+        </calcite-block>
+
+      </calcite-panel>
+    </calcite-shell-panel>
+
+    <!-- Map -->
+    <div id="viewDiv"></div>
+
+    <!-- Floating overlays -->
+    <div id="coordDisplay">Lat: --, Lon: --</div>
+    <div id="pixelInfo">
+      <div class="pi-title">Noise at Location</div>
+      <div class="pi-value">-- <span class="pi-unit">dB</span></div>
+      <div class="pi-desc"></div>
+    </div>
+
+  </calcite-shell>
+
+  <script type="module">
+    import Map from "https://js.arcgis.com/5.0/esri/Map.js";
+    import MapView from "https://js.arcgis.com/5.0/esri/views/MapView.js";
+    import ImageryTileLayer from "https://js.arcgis.com/5.0/esri/layers/ImageryTileLayer.js";
+    import RasterStretchRenderer from "https://js.arcgis.com/5.0/esri/renderers/RasterStretchRenderer.js";
+    import MultipartColorRamp from "https://js.arcgis.com/5.0/esri/rest/support/MultipartColorRamp.js";
+    import AlgorithmicColorRamp from "https://js.arcgis.com/5.0/esri/rest/support/AlgorithmicColorRamp.js";
+    import Color from "https://js.arcgis.com/5.0/esri/Color.js";
+    import Basemap from "https://js.arcgis.com/5.0/esri/Basemap.js";
+    import * as reactiveUtils from "https://js.arcgis.com/5.0/esri/core/reactiveUtils.js";
+
+    // ---- Color ramp (green → yellow → orange → red → dark red) ----
+    const colorRamp = new MultipartColorRamp({
+      colorRamps: [
+        new AlgorithmicColorRamp({
+          fromColor: new Color([26, 152, 80]),
+          toColor: new Color([166, 217, 106]),
+          algorithm: "lab-lch"
+        }),
+        new AlgorithmicColorRamp({
+          fromColor: new Color([166, 217, 106]),
+          toColor: new Color([254, 224, 139]),
+          algorithm: "lab-lch"
+        }),
+        new AlgorithmicColorRamp({
+          fromColor: new Color([254, 224, 139]),
+          toColor: new Color([253, 174, 97]),
+          algorithm: "lab-lch"
+        }),
+        new AlgorithmicColorRamp({
+          fromColor: new Color([253, 174, 97]),
+          toColor: new Color([244, 109, 67]),
+          algorithm: "lab-lch"
+        }),
+        new AlgorithmicColorRamp({
+          fromColor: new Color([244, 109, 67]),
+          toColor: new Color([215, 48, 39]),
+          algorithm: "lab-lch"
+        }),
+        new AlgorithmicColorRamp({
+          fromColor: new Color([215, 48, 39]),
+          toColor: new Color([165, 0, 38]),
+          algorithm: "lab-lch"
+        })
+      ]
+    });
+
+    const renderer = new RasterStretchRenderer({
+      colorRamp,
+      stretchType: "min-max",
+      statistics: [{ min: 45, max: 124, avg: 70, stddev: 15 }]
+    });
+
+    // ---- Noise layer ----
+    const noiseLayer = new ImageryTileLayer({
+      url: "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer",
+      title: "Transportation Noise 2020",
+      renderer,
+      opacity: 0.8
+    });
+
+    // ---- Map & View ----
+    const map = new Map({
+      basemap: "dark-gray-vector",
+      layers: [noiseLayer]
+    });
+
+    const view = new MapView({
+      container: "viewDiv",
+      map,
+      center: [-98.5, 39.5],
+      zoom: 5,
+      constraints: { minZoom: 3, maxZoom: 14 },
+      popup: { enabled: false }
+    });
+
+    // Remove default UI widgets
+    view.ui.components = [];
+
+    // ---- Basemap toggle ----
+    let isDark = true;
+    document.getElementById("btnBasemapToggle").addEventListener("click", () => {
+      isDark = !isDark;
+      map.basemap = isDark ? "dark-gray-vector" : "gray-vector";
+    });
+
+    // ---- Home extent ----
+    document.getElementById("btnHomeExtent").addEventListener("click", () => {
+      view.goTo({ center: [-98.5, 39.5], zoom: 5 }, { duration: 1000 });
+    });
+
+    // ---- Layer toggle ----
+    document.getElementById("toggleLayer").addEventListener("calciteSwitchChange", (e) => {
+      noiseLayer.visible = e.target.checked;
+    });
+
+    // ---- Opacity slider ----
+    const opacitySlider = document.getElementById("opacitySlider");
+    const opacityLabel = document.getElementById("opacityLabel");
+    opacitySlider.addEventListener("calciteSliderInput", () => {
+      const val = opacitySlider.value;
+      noiseLayer.opacity = val / 100;
+      opacityLabel.textContent = `${val}%`;
+    });
+
+    // ---- Coordinate display ----
+    const coordDisplay = document.getElementById("coordDisplay");
+    view.on("pointer-move", (evt) => {
+      const pt = view.toMap(evt);
+      if (pt) {
+        coordDisplay.textContent = `Lat: ${pt.latitude.toFixed(4)}, Lon: ${pt.longitude.toFixed(4)}`;
+      }
+    });
+
+    // ---- Click to identify noise value ----
+    const pixelInfo = document.getElementById("pixelInfo");
+
+    function getNoiseDescription(db) {
+      if (db < 55) return "Quiet - comparable to a library";
+      if (db < 65) return "Moderate - normal conversation level";
+      if (db < 75) return "Elevated - busy urban traffic";
+      if (db < 85) return "Loud - sustained exposure may cause stress";
+      if (db < 100) return "Very loud - hearing protection recommended";
+      return "Extreme - risk of hearing damage";
+    }
+
+    function getNoiseColor(db) {
+      if (db < 55) return "#1a9850";
+      if (db < 65) return "#a6d96a";
+      if (db < 75) return "#fee08b";
+      if (db < 85) return "#f46d43";
+      if (db < 100) return "#d73027";
+      return "#a50026";
+    }
+
+    view.on("click", async (evt) => {
+      try {
+        const result = await noiseLayer.identify(evt.mapPoint);
+        if (result?.value) {
+          const db = Math.round(result.value[0]);
+          const piValue = pixelInfo.querySelector(".pi-value");
+          const piDesc = pixelInfo.querySelector(".pi-desc");
+          piValue.innerHTML = `${db} <span class="pi-unit">dB</span>`;
+          piValue.style.color = getNoiseColor(db);
+          piDesc.textContent = getNoiseDescription(db);
+          pixelInfo.style.display = "block";
+        } else {
+          pixelInfo.style.display = "none";
+        }
+      } catch {
+        pixelInfo.style.display = "none";
+      }
+    });
+
+    // Hide pixel info on map drag
+    view.on("drag", () => {
+      pixelInfo.style.display = "none";
+    });
+  </script>
+</body>
+</html>
