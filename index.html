@@ -121,32 +121,32 @@
           <!-- Classified legend (default visible) -->
           <div id="legendClassified" class="cls-legend">
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#2b8c3e"></div>
+              <div class="cls-swatch" style="background:rgba(43,140,62,0.15)"></div>
               <span class="cls-label">Quiet</span>
               <span class="cls-range">45-55 dB</span>
             </div>
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#7cb342"></div>
+              <div class="cls-swatch" style="background:rgba(124,179,66,0.4)"></div>
               <span class="cls-label">Moderate</span>
               <span class="cls-range">55-65 dB</span>
             </div>
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#fdd835"></div>
+              <div class="cls-swatch" style="background:rgba(253,216,53,0.63)"></div>
               <span class="cls-label">Elevated</span>
               <span class="cls-range">65-75 dB</span>
             </div>
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#fb8c00"></div>
+              <div class="cls-swatch" style="background:rgba(251,140,0,0.78)"></div>
               <span class="cls-label">Loud</span>
               <span class="cls-range">75-85 dB</span>
             </div>
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#e53935"></div>
+              <div class="cls-swatch" style="background:rgba(229,57,53,0.92)"></div>
               <span class="cls-label">Very Loud</span>
               <span class="cls-range">85-100 dB</span>
             </div>
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#7b1fa2"></div>
+              <div class="cls-swatch" style="background:rgba(123,31,162,1.0)"></div>
               <span class="cls-label">Extreme / Hazardous</span>
               <span class="cls-range">100-124 dB</span>
             </div>
@@ -243,9 +243,9 @@
           <calcite-label style="margin-top: 10px;">
             Layer Opacity
             <div class="slider-row">
-              <calcite-slider id="opacitySlider" min="0" max="100" value="80" step="5"
+              <calcite-slider id="opacitySlider" min="0" max="100" value="90" step="5"
                 label-handles label-ticks ticks="25" snap></calcite-slider>
-              <span class="slider-val" id="opacityLabel">80%</span>
+              <span class="slider-val" id="opacityLabel">90%</span>
             </div>
           </calcite-label>
 
@@ -312,15 +312,16 @@
       "@arcgis/core/Color.js"
     ]);
 
-    // ---- Color ramp (green → lime → yellow → orange → red → purple) ----
+    // ---- Color ramp with alpha: transparent at 45dB → opaque at 124dB ----
+    // Alpha progression: 0 → 50 → 120 → 190 → 230 → 255
     function makeColorRamp() {
       return new MultipartColorRamp({
         colorRamps: [
-          new AlgorithmicColorRamp({ fromColor: new Color([43, 140, 62]), toColor: new Color([124, 179, 66]), algorithm: "lab-lch" }),
-          new AlgorithmicColorRamp({ fromColor: new Color([124, 179, 66]), toColor: new Color([253, 216, 53]), algorithm: "lab-lch" }),
-          new AlgorithmicColorRamp({ fromColor: new Color([253, 216, 53]), toColor: new Color([251, 140, 0]),  algorithm: "lab-lch" }),
-          new AlgorithmicColorRamp({ fromColor: new Color([251, 140, 0]),  toColor: new Color([229, 57, 53]),  algorithm: "lab-lch" }),
-          new AlgorithmicColorRamp({ fromColor: new Color([229, 57, 53]),  toColor: new Color([123, 31, 162]), algorithm: "lab-lch" })
+          new AlgorithmicColorRamp({ fromColor: new Color([43, 140, 62, 0]),    toColor: new Color([124, 179, 66, 50]),  algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([124, 179, 66, 50]),  toColor: new Color([253, 216, 53, 120]), algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([253, 216, 53, 120]), toColor: new Color([251, 140, 0, 190]),  algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([251, 140, 0, 190]),  toColor: new Color([229, 57, 53, 230]),  algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([229, 57, 53, 230]),  toColor: new Color([123, 31, 162, 255]), algorithm: "lab-lch" })
         ]
       });
     }
@@ -339,30 +340,43 @@
 
     // ---- Renderers ----
 
-    // 1. Classified: Remap + Colormap raster function
-    const classifiedRasterFunction = {
-      functionName: "Colormap",
-      functionArguments: {
-        colormap: [
-          [1, 43, 140, 62],    // Quiet - green
-          [2, 124, 179, 66],   // Moderate - lime
-          [3, 253, 216, 53],   // Elevated - yellow
-          [4, 251, 140, 0],    // Loud - orange
-          [5, 229, 57, 53],    // Very Loud - red
-          [6, 123, 31, 162]    // Extreme - purple
-        ],
-        raster: {
-          functionName: "Remap",
-          functionArguments: {
-            InputRanges: [45, 55, 55, 65, 65, 75, 75, 85, 85, 100, 100, 124],
-            OutputValues: [1, 2, 3, 4, 5, 6],
-            raster: "$$"
-          }
-        }
+    // 1. Classified: Stepped color ramp with alpha (flat bands per category)
+    function makeClassifiedColorRamp() {
+      // Each category gets a flat band (from=to same color), connected by tiny transitions
+      // Alpha: 0 → 40 → 100 → 170 → 230 → 255
+      const cats = [
+        { r: 43, g: 140, b: 62,  a: 0 },    // 45 dB  - Quiet (transparent)
+        { r: 43, g: 140, b: 62,  a: 40 },    // 55 dB  - end of Quiet
+        { r: 124, g: 179, b: 66, a: 100 },   // 55 dB  - Moderate
+        { r: 124, g: 179, b: 66, a: 100 },   // 65 dB  - end of Moderate
+        { r: 253, g: 216, b: 53, a: 160 },   // 65 dB  - Elevated
+        { r: 253, g: 216, b: 53, a: 160 },   // 75 dB  - end of Elevated
+        { r: 251, g: 140, b: 0,  a: 200 },   // 75 dB  - Loud
+        { r: 251, g: 140, b: 0,  a: 200 },   // 85 dB  - end of Loud
+        { r: 229, g: 57,  b: 53, a: 235 },   // 85 dB  - Very Loud
+        { r: 229, g: 57,  b: 53, a: 235 },   // 100 dB - end of Very Loud
+        { r: 123, g: 31,  b: 162, a: 255 },  // 100 dB - Extreme
+        { r: 123, g: 31,  b: 162, a: 255 }   // 124 dB - end of Extreme (fully opaque)
+      ];
+      const ramps = [];
+      for (let i = 0; i < cats.length - 1; i++) {
+        const c1 = cats[i], c2 = cats[i + 1];
+        ramps.push(new AlgorithmicColorRamp({
+          fromColor: new Color([c1.r, c1.g, c1.b, c1.a]),
+          toColor: new Color([c2.r, c2.g, c2.b, c2.a]),
+          algorithm: "lab-lch"
+        }));
       }
-    };
+      return new MultipartColorRamp({ colorRamps: ramps });
+    }
 
-    // 2. Continuous: Stretch renderer
+    const classifiedRenderer = new RasterStretchRenderer({
+      colorRamp: makeClassifiedColorRamp(),
+      stretchType: "min-max",
+      statistics: stats
+    });
+
+    // 2. Continuous: Stretch renderer with smooth alpha gradient
     const continuousRenderer = new RasterStretchRenderer({
       colorRamp: makeColorRamp(),
       stretchType: "min-max",
@@ -385,8 +399,8 @@
     const noiseLayer = new ImageryTileLayer({
       url: LAYER_URL,
       title: "Transportation Noise 2020",
-      rasterFunction: classifiedRasterFunction,
-      opacity: 0.8
+      renderer: classifiedRenderer,
+      opacity: 0.9
     });
 
     // ---- Map & View ----
@@ -413,8 +427,8 @@
 
       switch (mode) {
         case "classified":
-          noiseLayer.renderer = null;
-          noiseLayer.rasterFunction = classifiedRasterFunction;
+          noiseLayer.rasterFunction = null;
+          noiseLayer.renderer = classifiedRenderer;
           break;
         case "continuous":
           noiseLayer.rasterFunction = null;
@@ -515,23 +529,14 @@
       try {
         const result = await noiseLayer.identify(evt.mapPoint);
         if (result?.value) {
-          const raw = result.value[0];
-          // In classified mode the value is the class index (1-6), in others it's dB
-          const db = (currentMode === "classified" && raw >= 1 && raw <= 6)
-            ? noiseCategories[raw - 1].min
-            : Math.round(raw);
-          const isClassifiedClick = currentMode === "classified" && raw >= 1 && raw <= 6;
-          const cat = isClassifiedClick ? noiseCategories[raw - 1] : getCategoryForDb(db);
+          const db = Math.round(result.value[0]);
+          const cat = getCategoryForDb(db);
 
           const piValue = pixelInfo.querySelector(".pi-value");
           const piCategory = pixelInfo.querySelector(".pi-category");
           const piDesc = pixelInfo.querySelector(".pi-desc");
 
-          if (isClassifiedClick) {
-            piValue.innerHTML = `${cat.min}-${cat.max} <span class="pi-unit">dB</span>`;
-          } else {
-            piValue.innerHTML = `${db} <span class="pi-unit">dB</span>`;
-          }
+          piValue.innerHTML = `${db} <span class="pi-unit">dB</span>`;
           piValue.style.color = cat.color;
           piCategory.textContent = cat.label;
           piCategory.style.color = cat.color;
