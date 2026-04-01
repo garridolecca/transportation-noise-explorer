@@ -236,7 +236,7 @@
           <calcite-icon icon="sound-level" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
-            Animate >60 dB zones
+            Animate >50 dB zones
             <calcite-switch id="togglePulse"></calcite-switch>
           </calcite-label>
 
@@ -248,7 +248,7 @@
             </div>
           </calcite-label>
 
-          <p class="mode-note">Areas above 60 dB pulse with a radiating glow, simulating sound wave propagation from noisy corridors.</p>
+          <p class="mode-note">Areas above 50 dB pulse with radiating rings, simulating sound wave propagation from noisy corridors.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -493,7 +493,7 @@
             noiseLayer.identify(pt)
               .then(res => {
                 const db = res?.value?.[0];
-                return (db && db > 60) ? { x: pt.x, y: pt.y, db } : null;
+                return (db && db > 50) ? { x: pt.x, y: pt.y, db } : null;
               })
               .catch(() => null)
           );
@@ -502,7 +502,7 @@
 
       const results = await Promise.all(promises);
       sampledPoints = results.filter(Boolean);
-      console.log(`Sampled ${sampledPoints.length} points > 60 dB`);
+      console.log(`Sampled ${sampledPoints.length} points > 50 dB`);
 
       // Create graphics for each wave layer (3 ring phases)
       waveLayers.forEach((layer, i) => {
@@ -542,7 +542,7 @@
         layer.graphics.forEach(g => {
           const db = g.attributes.db;
           // Louder points get bigger rings
-          const dbScale = 0.6 + ((db - 60) / 64) * 0.8;
+          const dbScale = 0.5 + ((db - 50) / 74) * 1.0;
           g.symbol = {
             type: "simple-marker",
             style: "circle",
