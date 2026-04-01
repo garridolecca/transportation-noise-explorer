@@ -5,200 +5,79 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>USA Transportation Noise Explorer</title>
 
-  <!-- ArcGIS Maps SDK 5.0 (unified: Core + Calcite + all components) -->
   <script type="module" src="https://js.arcgis.com/5.0/"></script>
   <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/dark/main.css" />
 
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      font-family: "Avenir Next", "Helvetica Neue", sans-serif;
-      overflow: hidden;
-    }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+    calcite-shell { --calcite-color-brand: #0079c1; }
+    #viewDiv { width: 100%; height: 100%; background: #1a1a2e; }
 
-    calcite-shell {
-      --calcite-color-brand: #0079c1;
-    }
-
-    #viewDiv {
-      width: 100%;
-      height: 100%;
-      background: #1a1a2e;
-    }
-
-    /* Navigation branding */
     .nav-title {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0 12px;
-      color: #fff;
+      display: flex; align-items: center; gap: 10px; padding: 0 12px; color: #fff;
     }
-    .nav-title h1 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-      letter-spacing: 0.3px;
-    }
-    .nav-title span {
-      font-size: 12px;
-      color: #a3b8cc;
-      font-weight: 400;
-    }
+    .nav-title h1 { font-size: 16px; font-weight: 600; margin: 0; }
+    .nav-title span { font-size: 12px; color: #a3b8cc; }
 
-    /* Legend color bar */
-    .noise-legend {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 8px 0;
-    }
-    .legend-bar {
-      height: 18px;
-      border-radius: 4px;
-      background: linear-gradient(to right,
-        #00c8dc, #00e676, #c8f032, #ffc800,
-        #ff641e, #e61e64, #b400b4);
-    }
-    .legend-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: #a3b8cc;
-      padding: 0 2px;
-    }
-
-    /* Stats cards */
-    .stat-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      padding: 8px 0;
-    }
+    .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 0; }
     .stat-card {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px; padding: 10px; text-align: center;
     }
-    .stat-value {
-      font-size: 22px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .stat-label {
-      font-size: 11px;
-      color: #8899aa;
-      margin-top: 2px;
-    }
+    .stat-value { font-size: 22px; font-weight: 700; color: #fff; }
+    .stat-label { font-size: 11px; color: #8899aa; margin-top: 2px; }
 
-    /* Info text */
-    .info-text {
-      font-size: 12px;
-      line-height: 1.6;
-      color: #a3b8cc;
-      padding: 4px 0;
-    }
-    .info-text strong {
-      color: #cdd9e5;
-    }
+    .slider-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+    .slider-row calcite-slider { flex: 1; }
+    .slider-val { font-size: 13px; color: #fff; font-weight: 600; min-width: 36px; text-align: right; }
 
-    /* Noise level reference */
-    .noise-ref {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 6px 0;
-    }
-    .noise-ref-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 12px;
-      color: #a3b8cc;
-    }
-    .noise-ref-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    /* Opacity display */
-    .opacity-value {
-      font-size: 13px;
-      color: #fff;
-      font-weight: 600;
-      text-align: right;
-      min-width: 36px;
-    }
-    .slider-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 4px 0;
-    }
-    .slider-row calcite-slider {
-      flex: 1;
-    }
-
-    /* Coordinate display */
-    #coordDisplay {
-      position: absolute;
-      bottom: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(20, 25, 35, 0.85);
-      backdrop-filter: blur(8px);
-      color: #a3b8cc;
-      font-size: 11px;
-      padding: 5px 14px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.08);
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    /* Pixel info popup */
-    #pixelInfo {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(20, 25, 35, 0.9);
-      backdrop-filter: blur(10px);
+    /* Classified legend */
+    .cls-legend { display: flex; flex-direction: column; gap: 5px; padding: 6px 0; }
+    .cls-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #a3b8cc; }
+    .cls-swatch {
+      width: 28px; height: 14px; border-radius: 3px; flex-shrink: 0;
       border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      padding: 14px 18px;
-      color: #fff;
-      z-index: 10;
-      display: none;
-      min-width: 160px;
     }
-    #pixelInfo .pi-title {
-      font-size: 11px;
-      color: #8899aa;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 6px;
+    .cls-item .cls-label { flex: 1; }
+    .cls-item .cls-range { font-size: 11px; color: #667788; white-space: nowrap; }
+
+    /* Continuous legend */
+    .cont-legend { padding: 8px 0; }
+    .cont-bar { height: 16px; border-radius: 4px; }
+    .cont-labels {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: #8899aa; padding: 4px 2px 0;
     }
-    #pixelInfo .pi-value {
-      font-size: 28px;
-      font-weight: 700;
+
+    /* Shaded relief note */
+    .mode-note { font-size: 11px; color: #667788; line-height: 1.5; padding: 6px 0; }
+
+    .info-text { font-size: 12px; line-height: 1.6; color: #a3b8cc; padding: 4px 0; }
+    .info-text strong { color: #cdd9e5; }
+
+    #coordDisplay {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,25,35,0.85); backdrop-filter: blur(8px);
+      color: #a3b8cc; font-size: 11px; padding: 5px 14px;
+      border-radius: 20px; border: 1px solid rgba(255,255,255,0.08);
+      pointer-events: none; z-index: 10;
     }
-    #pixelInfo .pi-unit {
-      font-size: 13px;
-      color: #a3b8cc;
-      font-weight: 400;
+
+    #pixelInfo {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(20,25,35,0.92); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+      padding: 14px 18px; color: #fff; z-index: 10; display: none; min-width: 180px;
     }
-    #pixelInfo .pi-desc {
-      font-size: 12px;
-      color: #a3b8cc;
-      margin-top: 4px;
-    }
+    #pixelInfo .pi-title { font-size: 11px; color: #8899aa; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    #pixelInfo .pi-value { font-size: 28px; font-weight: 700; }
+    #pixelInfo .pi-unit { font-size: 13px; color: #a3b8cc; font-weight: 400; }
+    #pixelInfo .pi-desc { font-size: 12px; color: #a3b8cc; margin-top: 4px; }
+    #pixelInfo .pi-category { font-size: 11px; font-weight: 600; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Sun controls for shaded relief */
+    .sun-controls { display: flex; gap: 12px; padding: 4px 0; }
+    .sun-controls calcite-label { flex: 1; }
   </style>
 </head>
 
@@ -224,8 +103,111 @@
     <calcite-shell-panel slot="panel-start" width-scale="m" position="start">
       <calcite-panel heading="Noise Analysis" description="Transportation noise impact across the US">
 
+        <!-- Visualization Mode -->
+        <calcite-block heading="Visualization Mode" open collapsible>
+          <calcite-icon icon="layer-map-2d" slot="icon" scale="s"></calcite-icon>
+          <calcite-label>Renderer</calcite-label>
+          <calcite-segmented-control id="vizMode" width="full" scale="s">
+            <calcite-segmented-control-item value="classified" checked>Classified</calcite-segmented-control-item>
+            <calcite-segmented-control-item value="continuous">Continuous</calcite-segmented-control-item>
+            <calcite-segmented-control-item value="relief">Shaded Relief</calcite-segmented-control-item>
+          </calcite-segmented-control>
+        </calcite-block>
+
+        <!-- Dynamic Legend -->
+        <calcite-block heading="Legend" id="legendBlock" open collapsible>
+          <calcite-icon icon="legend" slot="icon" scale="s"></calcite-icon>
+
+          <!-- Classified legend (default visible) -->
+          <div id="legendClassified" class="cls-legend">
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#2b8c3e"></div>
+              <span class="cls-label">Quiet</span>
+              <span class="cls-range">45-55 dB</span>
+            </div>
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#7cb342"></div>
+              <span class="cls-label">Moderate</span>
+              <span class="cls-range">55-65 dB</span>
+            </div>
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#fdd835"></div>
+              <span class="cls-label">Elevated</span>
+              <span class="cls-range">65-75 dB</span>
+            </div>
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#fb8c00"></div>
+              <span class="cls-label">Loud</span>
+              <span class="cls-range">75-85 dB</span>
+            </div>
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#e53935"></div>
+              <span class="cls-label">Very Loud</span>
+              <span class="cls-range">85-100 dB</span>
+            </div>
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#7b1fa2"></div>
+              <span class="cls-label">Extreme / Hazardous</span>
+              <span class="cls-range">100-124 dB</span>
+            </div>
+          </div>
+
+          <!-- Continuous legend -->
+          <div id="legendContinuous" style="display:none" class="cont-legend">
+            <div class="cont-bar" style="background: linear-gradient(to right, #2b8c3e, #7cb342, #fdd835, #fb8c00, #e53935, #7b1fa2);"></div>
+            <div class="cont-labels">
+              <span>45 dB</span><span>65</span><span>85</span><span>105</span><span>124 dB</span>
+            </div>
+          </div>
+
+          <!-- Shaded relief legend -->
+          <div id="legendRelief" style="display:none">
+            <div class="cont-bar" style="background: linear-gradient(to right, #2b8c3e, #7cb342, #fdd835, #fb8c00, #e53935, #7b1fa2);"></div>
+            <div class="cont-labels">
+              <span>45 dB</span><span>65</span><span>85</span><span>105</span><span>124 dB</span>
+            </div>
+            <p class="mode-note">Noise values rendered as pseudo-terrain with hillshade lighting. Louder areas appear as ridges and peaks.</p>
+          </div>
+        </calcite-block>
+
+        <!-- Shaded Relief Controls (hidden by default) -->
+        <calcite-block heading="Hillshade Controls" id="reliefControls" collapsible style="display:none">
+          <calcite-icon icon="brightness" slot="icon" scale="s"></calcite-icon>
+          <div class="sun-controls">
+            <calcite-label>
+              Sun Azimuth
+              <div class="slider-row">
+                <calcite-slider id="azimuthSlider" min="0" max="360" value="315" step="5" snap></calcite-slider>
+                <span class="slider-val" id="azimuthLabel">315</span>
+              </div>
+            </calcite-label>
+          </div>
+          <div class="sun-controls">
+            <calcite-label>
+              Sun Altitude
+              <div class="slider-row">
+                <calcite-slider id="altitudeSlider" min="5" max="90" value="45" step="5" snap></calcite-slider>
+                <span class="slider-val" id="altitudeLabel">45</span>
+              </div>
+            </calcite-label>
+          </div>
+          <div class="sun-controls">
+            <calcite-label>
+              Z-Factor (Exaggeration)
+              <div class="slider-row">
+                <calcite-slider id="zFactorSlider" min="1" max="10" value="3" step="1" snap></calcite-slider>
+                <span class="slider-val" id="zFactorLabel">3</span>
+              </div>
+            </calcite-label>
+          </div>
+          <calcite-label layout="inline-space-between" style="margin-top: 6px;">
+            Multi-directional Light
+            <calcite-switch id="multiDirSwitch" checked></calcite-switch>
+          </calcite-label>
+        </calcite-block>
+
         <!-- Stats -->
-        <calcite-block heading="Data Overview" open collapsible>
+        <calcite-block heading="Data Overview" collapsible>
           <calcite-icon icon="graph-bar" slot="icon" scale="s"></calcite-icon>
           <div class="stat-row">
             <div class="stat-card">
@@ -249,109 +231,6 @@
           </div>
         </calcite-block>
 
-        <!-- Legend -->
-        <calcite-block heading="Noise Level (dB)" open collapsible>
-          <calcite-icon icon="legend" slot="icon" scale="s"></calcite-icon>
-          <div class="noise-legend">
-            <div class="legend-bar"></div>
-            <div class="legend-labels">
-              <span>45 dB</span>
-              <span>65</span>
-              <span>85</span>
-              <span>105</span>
-              <span>124 dB</span>
-            </div>
-          </div>
-        </calcite-block>
-
-        <!-- Reference -->
-        <calcite-block heading="Noise Reference" collapsible>
-          <calcite-icon icon="information" slot="icon" scale="s"></calcite-icon>
-          <div class="noise-ref">
-            <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#00c8dc"></div>
-              <span>45-55 dB - Quiet suburb, bird calls</span>
-            </div>
-            <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#00e676"></div>
-              <span>55-65 dB - Normal conversation</span>
-            </div>
-            <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#ffc800"></div>
-              <span>65-75 dB - Busy traffic, vacuum cleaner</span>
-            </div>
-            <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#ff641e"></div>
-              <span>75-85 dB - Heavy traffic, loud restaurant</span>
-            </div>
-            <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#e61e64"></div>
-              <span>85-100 dB - Motorcycle, power tools</span>
-            </div>
-            <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#b400b4"></div>
-              <span>100+ dB - Jet takeoff, risk of hearing damage</span>
-            </div>
-          </div>
-        </calcite-block>
-
-        <!-- Visual Effects -->
-        <calcite-block heading="Visual Effects" open collapsible>
-          <calcite-icon icon="effects" slot="icon" scale="s"></calcite-icon>
-
-          <!-- Presets -->
-          <calcite-label>Effect Preset</calcite-label>
-          <calcite-segmented-control id="effectPreset" width="full" scale="s">
-            <calcite-segmented-control-item value="neon" checked>Neon Glow</calcite-segmented-control-item>
-            <calcite-segmented-control-item value="heat">Heatmap</calcite-segmented-control-item>
-            <calcite-segmented-control-item value="xray">X-Ray</calcite-segmented-control-item>
-            <calcite-segmented-control-item value="none">None</calcite-segmented-control-item>
-          </calcite-segmented-control>
-
-          <!-- Bloom -->
-          <calcite-label style="margin-top: 14px;">
-            Bloom Strength
-            <div class="slider-row">
-              <calcite-slider id="bloomSlider" min="0" max="3" value="1.2" step="0.1"
-                snap></calcite-slider>
-              <span class="opacity-value" id="bloomLabel">1.2</span>
-            </div>
-          </calcite-label>
-
-          <!-- Saturate -->
-          <calcite-label>
-            Saturation
-            <div class="slider-row">
-              <calcite-slider id="saturateSlider" min="0" max="4" value="1.4" step="0.1"
-                snap></calcite-slider>
-              <span class="opacity-value" id="saturateLabel">1.4</span>
-            </div>
-          </calcite-label>
-
-          <!-- Brightness -->
-          <calcite-label>
-            Brightness
-            <div class="slider-row">
-              <calcite-slider id="brightnessSlider" min="0.5" max="2.5" value="1.0" step="0.1"
-                snap></calcite-slider>
-              <span class="opacity-value" id="brightnessLabel">1.0</span>
-            </div>
-          </calcite-label>
-
-          <!-- Blend Mode -->
-          <calcite-label style="margin-top: 6px;">
-            Blend Mode
-            <calcite-select id="blendSelect" scale="s">
-              <calcite-option value="screen" selected>Screen</calcite-option>
-              <calcite-option value="color-dodge">Color Dodge</calcite-option>
-              <calcite-option value="lighten">Lighten</calcite-option>
-              <calcite-option value="overlay">Overlay</calcite-option>
-              <calcite-option value="hard-light">Hard Light</calcite-option>
-              <calcite-option value="normal">Normal</calcite-option>
-            </calcite-select>
-          </calcite-label>
-        </calcite-block>
-
         <!-- Layer Controls -->
         <calcite-block heading="Layer Controls" collapsible open>
           <calcite-icon icon="sliders-horizontal" slot="icon" scale="s"></calcite-icon>
@@ -364,10 +243,21 @@
           <calcite-label style="margin-top: 10px;">
             Layer Opacity
             <div class="slider-row">
-              <calcite-slider id="opacitySlider" min="0" max="100" value="85" step="5"
+              <calcite-slider id="opacitySlider" min="0" max="100" value="80" step="5"
                 label-handles label-ticks ticks="25" snap></calcite-slider>
-              <span class="opacity-value" id="opacityLabel">85%</span>
+              <span class="slider-val" id="opacityLabel">80%</span>
             </div>
+          </calcite-label>
+
+          <calcite-label style="margin-top: 6px;">
+            Blend Mode
+            <calcite-select id="blendSelect" scale="s">
+              <calcite-option value="normal" selected>Normal</calcite-option>
+              <calcite-option value="multiply">Multiply</calcite-option>
+              <calcite-option value="overlay">Overlay</calcite-option>
+              <calcite-option value="screen">Screen</calcite-option>
+              <calcite-option value="color-dodge">Color Dodge</calcite-option>
+            </calcite-select>
           </calcite-label>
         </calcite-block>
 
@@ -379,6 +269,11 @@
             United States from rail, road, and aviation sources (2020 data).
             Noise is measured in <strong>decibels (dB)</strong> at ~30m pixel resolution.
             Click anywhere on the noise layer to inspect the local noise value.
+          </p>
+          <p class="info-text">
+            <strong>Classified</strong> groups noise into EPA/WHO health-impact categories.
+            <strong>Continuous</strong> shows the smooth gradient of noise values.
+            <strong>Shaded Relief</strong> treats noise as terrain - louder areas rise as peaks.
           </p>
         </calcite-block>
 
@@ -393,95 +288,183 @@
     <div id="pixelInfo">
       <div class="pi-title">Noise at Location</div>
       <div class="pi-value">-- <span class="pi-unit">dB</span></div>
+      <div class="pi-category"></div>
       <div class="pi-desc"></div>
     </div>
 
   </calcite-shell>
 
   <script type="module">
+    const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
+
     const [
       Map, MapView, ImageryTileLayer,
-      RasterStretchRenderer, MultipartColorRamp,
-      AlgorithmicColorRamp, Color
+      RasterStretchRenderer, RasterShadedReliefRenderer,
+      MultipartColorRamp, AlgorithmicColorRamp, Color
     ] = await $arcgis.import([
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
       "@arcgis/core/layers/ImageryTileLayer.js",
       "@arcgis/core/renderers/RasterStretchRenderer.js",
+      "@arcgis/core/renderers/RasterShadedReliefRenderer.js",
       "@arcgis/core/rest/support/MultipartColorRamp.js",
       "@arcgis/core/rest/support/AlgorithmicColorRamp.js",
       "@arcgis/core/Color.js"
     ]);
 
-    // ---- Color ramp (cyan → green → yellow → orange → magenta → hot pink) ----
-    const colorRamp = new MultipartColorRamp({
-      colorRamps: [
-        new AlgorithmicColorRamp({
-          fromColor: new Color([0, 200, 220]),
-          toColor: new Color([0, 230, 118]),
-          algorithm: "lab-lch"
-        }),
-        new AlgorithmicColorRamp({
-          fromColor: new Color([0, 230, 118]),
-          toColor: new Color([200, 240, 50]),
-          algorithm: "lab-lch"
-        }),
-        new AlgorithmicColorRamp({
-          fromColor: new Color([200, 240, 50]),
-          toColor: new Color([255, 200, 0]),
-          algorithm: "lab-lch"
-        }),
-        new AlgorithmicColorRamp({
-          fromColor: new Color([255, 200, 0]),
-          toColor: new Color([255, 100, 30]),
-          algorithm: "lab-lch"
-        }),
-        new AlgorithmicColorRamp({
-          fromColor: new Color([255, 100, 30]),
-          toColor: new Color([230, 30, 100]),
-          algorithm: "lab-lch"
-        }),
-        new AlgorithmicColorRamp({
-          fromColor: new Color([230, 30, 100]),
-          toColor: new Color([180, 0, 180]),
-          algorithm: "lab-lch"
-        })
-      ]
-    });
+    // ---- Color ramp (green → lime → yellow → orange → red → purple) ----
+    function makeColorRamp() {
+      return new MultipartColorRamp({
+        colorRamps: [
+          new AlgorithmicColorRamp({ fromColor: new Color([43, 140, 62]), toColor: new Color([124, 179, 66]), algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([124, 179, 66]), toColor: new Color([253, 216, 53]), algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([253, 216, 53]), toColor: new Color([251, 140, 0]),  algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([251, 140, 0]),  toColor: new Color([229, 57, 53]),  algorithm: "lab-lch" }),
+          new AlgorithmicColorRamp({ fromColor: new Color([229, 57, 53]),  toColor: new Color([123, 31, 162]), algorithm: "lab-lch" })
+        ]
+      });
+    }
 
-    const renderer = new RasterStretchRenderer({
-      colorRamp,
+    const stats = [{ min: 45, max: 124, avg: 70, stddev: 15 }];
+
+    // ---- Noise categories based on EPA/WHO thresholds ----
+    const noiseCategories = [
+      { min: 45,  max: 55,  label: "Quiet",              color: "#2b8c3e", desc: "Comparable to a library or quiet suburb" },
+      { min: 55,  max: 65,  label: "Moderate",            color: "#7cb342", desc: "Normal conversation level" },
+      { min: 65,  max: 75,  label: "Elevated",            color: "#fdd835", desc: "Busy traffic, potential sleep disturbance" },
+      { min: 75,  max: 85,  label: "Loud",                color: "#fb8c00", desc: "Sustained exposure may cause stress" },
+      { min: 85,  max: 100, label: "Very Loud",           color: "#e53935", desc: "Hearing protection recommended" },
+      { min: 100, max: 124, label: "Extreme / Hazardous", color: "#7b1fa2", desc: "Risk of hearing damage" }
+    ];
+
+    // ---- Renderers ----
+
+    // 1. Classified: Remap + Colormap raster function
+    const classifiedRasterFunction = {
+      functionName: "Colormap",
+      functionArguments: {
+        colormap: [
+          [1, 43, 140, 62],    // Quiet - green
+          [2, 124, 179, 66],   // Moderate - lime
+          [3, 253, 216, 53],   // Elevated - yellow
+          [4, 251, 140, 0],    // Loud - orange
+          [5, 229, 57, 53],    // Very Loud - red
+          [6, 123, 31, 162]    // Extreme - purple
+        ],
+        raster: {
+          functionName: "Remap",
+          functionArguments: {
+            InputRanges: [45, 55, 55, 65, 65, 75, 75, 85, 85, 100, 100, 124],
+            OutputValues: [1, 2, 3, 4, 5, 6],
+            raster: "$$"
+          }
+        }
+      }
+    };
+
+    // 2. Continuous: Stretch renderer
+    const continuousRenderer = new RasterStretchRenderer({
+      colorRamp: makeColorRamp(),
       stretchType: "min-max",
-      statistics: [{ min: 45, max: 124, avg: 70, stddev: 15 }]
+      statistics: stats
     });
 
-    // ---- Noise layer with effects ----
+    // 3. Shaded Relief: Pseudo-3D hillshade
+    function makeShadedReliefRenderer(opts = {}) {
+      return new RasterShadedReliefRenderer({
+        altitude: opts.altitude ?? 45,
+        azimuth: opts.azimuth ?? 315,
+        hillshadeType: opts.multiDir ? "multi-directional" : "traditional",
+        zFactor: opts.zFactor ?? 3,
+        scalingType: "adjusted",
+        colorRamp: makeColorRamp()
+      });
+    }
+
+    // ---- Noise Layer ----
     const noiseLayer = new ImageryTileLayer({
-      url: "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer",
+      url: LAYER_URL,
       title: "Transportation Noise 2020",
-      renderer,
-      opacity: 0.85,
-      effect: "bloom(1.2, 0.3px, 0.15) saturate(1.4) drop-shadow(0px, 0px, 6px, rgba(255,100,50,0.4))",
-      blendMode: "screen"
+      rasterFunction: classifiedRasterFunction,
+      opacity: 0.8
     });
 
     // ---- Map & View ----
-    const map = new Map({
-      basemap: "dark-gray-vector",
-      layers: [noiseLayer]
-    });
-
+    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer] });
     const view = new MapView({
-      container: "viewDiv",
-      map,
-      center: [-98.5, 39.5],
-      zoom: 5,
+      container: "viewDiv", map,
+      center: [-98.5, 39.5], zoom: 5,
       constraints: { minZoom: 3, maxZoom: 14 },
       popup: { enabled: false }
     });
-
-    // Remove default UI widgets
     view.ui.components = [];
+
+    // ---- Current mode tracking ----
+    let currentMode = "classified";
+
+    function setVisualizationMode(mode) {
+      currentMode = mode;
+
+      // Toggle legend sections
+      document.getElementById("legendClassified").style.display = mode === "classified" ? "" : "none";
+      document.getElementById("legendContinuous").style.display = mode === "continuous" ? "" : "none";
+      document.getElementById("legendRelief").style.display = mode === "relief" ? "" : "none";
+      document.getElementById("reliefControls").style.display = mode === "relief" ? "" : "none";
+
+      switch (mode) {
+        case "classified":
+          noiseLayer.renderer = null;
+          noiseLayer.rasterFunction = classifiedRasterFunction;
+          break;
+        case "continuous":
+          noiseLayer.rasterFunction = null;
+          noiseLayer.renderer = continuousRenderer;
+          break;
+        case "relief":
+          noiseLayer.rasterFunction = null;
+          noiseLayer.renderer = makeShadedReliefRenderer({
+            altitude: parseInt(document.getElementById("altitudeSlider").value),
+            azimuth: parseInt(document.getElementById("azimuthSlider").value),
+            zFactor: parseInt(document.getElementById("zFactorSlider").value),
+            multiDir: document.getElementById("multiDirSwitch").checked
+          });
+          break;
+      }
+    }
+
+    // ---- Visualization mode toggle ----
+    document.getElementById("vizMode").addEventListener("calciteSegmentedControlChange", (e) => {
+      setVisualizationMode(e.target.value);
+    });
+
+    // ---- Shaded relief controls ----
+    function updateRelief() {
+      if (currentMode !== "relief") return;
+      const az = parseInt(document.getElementById("azimuthSlider").value);
+      const alt = parseInt(document.getElementById("altitudeSlider").value);
+      const zf = parseInt(document.getElementById("zFactorSlider").value);
+      const multi = document.getElementById("multiDirSwitch").checked;
+      document.getElementById("azimuthLabel").textContent = az;
+      document.getElementById("altitudeLabel").textContent = alt;
+      document.getElementById("zFactorLabel").textContent = zf;
+      noiseLayer.renderer = makeShadedReliefRenderer({ altitude: alt, azimuth: az, zFactor: zf, multiDir: multi });
+    }
+
+    document.getElementById("azimuthSlider").addEventListener("calciteSliderChange", updateRelief);
+    document.getElementById("altitudeSlider").addEventListener("calciteSliderChange", updateRelief);
+    document.getElementById("zFactorSlider").addEventListener("calciteSliderChange", updateRelief);
+    document.getElementById("multiDirSwitch").addEventListener("calciteSwitchChange", updateRelief);
+
+    // Live labels for sliders
+    document.getElementById("azimuthSlider").addEventListener("calciteSliderInput", () => {
+      document.getElementById("azimuthLabel").textContent = document.getElementById("azimuthSlider").value;
+    });
+    document.getElementById("altitudeSlider").addEventListener("calciteSliderInput", () => {
+      document.getElementById("altitudeLabel").textContent = document.getElementById("altitudeSlider").value;
+    });
+    document.getElementById("zFactorSlider").addEventListener("calciteSliderInput", () => {
+      document.getElementById("zFactorLabel").textContent = document.getElementById("zFactorSlider").value;
+    });
 
     // ---- Basemap toggle ----
     let isDark = true;
@@ -493,60 +476,6 @@
     // ---- Home extent ----
     document.getElementById("btnHomeExtent").addEventListener("click", () => {
       view.goTo({ center: [-98.5, 39.5], zoom: 5 }, { duration: 1000 });
-    });
-
-    // ---- Effect controls ----
-    const bloomSlider = document.getElementById("bloomSlider");
-    const saturateSlider = document.getElementById("saturateSlider");
-    const brightnessSlider = document.getElementById("brightnessSlider");
-    const bloomLabel = document.getElementById("bloomLabel");
-    const saturateLabel = document.getElementById("saturateLabel");
-    const brightnessLabel = document.getElementById("brightnessLabel");
-    const blendSelect = document.getElementById("blendSelect");
-
-    function applyEffects() {
-      const bloom = parseFloat(bloomSlider.value);
-      const sat = parseFloat(saturateSlider.value);
-      const bright = parseFloat(brightnessSlider.value);
-      bloomLabel.textContent = bloom.toFixed(1);
-      saturateLabel.textContent = sat.toFixed(1);
-      brightnessLabel.textContent = bright.toFixed(1);
-
-      const parts = [];
-      if (bloom > 0) parts.push(`bloom(${bloom}, 0.3px, 0.15)`);
-      if (sat !== 1.0) parts.push(`saturate(${sat})`);
-      if (bright !== 1.0) parts.push(`brightness(${bright})`);
-      if (bloom > 0.5) parts.push(`drop-shadow(0px, 0px, ${Math.round(bloom * 5)}px, rgba(255,100,50,0.4))`);
-
-      noiseLayer.effect = parts.length ? parts.join(" ") : null;
-    }
-
-    bloomSlider.addEventListener("calciteSliderInput", applyEffects);
-    saturateSlider.addEventListener("calciteSliderInput", applyEffects);
-    brightnessSlider.addEventListener("calciteSliderInput", applyEffects);
-
-    // Blend mode
-    blendSelect.addEventListener("calciteSelectChange", () => {
-      noiseLayer.blendMode = blendSelect.value;
-    });
-
-    // Effect presets
-    const presets = {
-      neon:  { bloom: 1.2, sat: 1.4, bright: 1.0, blend: "screen" },
-      heat:  { bloom: 2.0, sat: 2.5, bright: 1.3, blend: "color-dodge" },
-      xray:  { bloom: 0.8, sat: 0.3, bright: 1.8, blend: "lighten" },
-      none:  { bloom: 0,   sat: 1.0, bright: 1.0, blend: "normal" }
-    };
-
-    document.getElementById("effectPreset").addEventListener("calciteSegmentedControlChange", (e) => {
-      const p = presets[e.target.value];
-      if (!p) return;
-      bloomSlider.value = p.bloom;
-      saturateSlider.value = p.sat;
-      brightnessSlider.value = p.bright;
-      blendSelect.value = p.blend;
-      noiseLayer.blendMode = p.blend;
-      applyEffects();
     });
 
     // ---- Layer toggle ----
@@ -563,46 +492,50 @@
       opacityLabel.textContent = `${val}%`;
     });
 
+    // ---- Blend mode ----
+    document.getElementById("blendSelect").addEventListener("calciteSelectChange", () => {
+      noiseLayer.blendMode = document.getElementById("blendSelect").value;
+    });
+
     // ---- Coordinate display ----
     const coordDisplay = document.getElementById("coordDisplay");
     view.on("pointer-move", (evt) => {
       const pt = view.toMap(evt);
-      if (pt) {
-        coordDisplay.textContent = `Lat: ${pt.latitude.toFixed(4)}, Lon: ${pt.longitude.toFixed(4)}`;
-      }
+      if (pt) coordDisplay.textContent = `Lat: ${pt.latitude.toFixed(4)}, Lon: ${pt.longitude.toFixed(4)}`;
     });
 
-    // ---- Click to identify noise value ----
+    // ---- Click to identify ----
     const pixelInfo = document.getElementById("pixelInfo");
 
-    function getNoiseDescription(db) {
-      if (db < 55) return "Quiet - comparable to a library";
-      if (db < 65) return "Moderate - normal conversation level";
-      if (db < 75) return "Elevated - busy urban traffic";
-      if (db < 85) return "Loud - sustained exposure may cause stress";
-      if (db < 100) return "Very loud - hearing protection recommended";
-      return "Extreme - risk of hearing damage";
-    }
-
-    function getNoiseColor(db) {
-      if (db < 55) return "#00c8dc";
-      if (db < 65) return "#00e676";
-      if (db < 75) return "#ffc800";
-      if (db < 85) return "#ff641e";
-      if (db < 100) return "#e61e64";
-      return "#b400b4";
+    function getCategoryForDb(db) {
+      return noiseCategories.find(c => db >= c.min && db < c.max) || noiseCategories[noiseCategories.length - 1];
     }
 
     view.on("click", async (evt) => {
       try {
         const result = await noiseLayer.identify(evt.mapPoint);
         if (result?.value) {
-          const db = Math.round(result.value[0]);
+          const raw = result.value[0];
+          // In classified mode the value is the class index (1-6), in others it's dB
+          const db = (currentMode === "classified" && raw >= 1 && raw <= 6)
+            ? noiseCategories[raw - 1].min
+            : Math.round(raw);
+          const isClassifiedClick = currentMode === "classified" && raw >= 1 && raw <= 6;
+          const cat = isClassifiedClick ? noiseCategories[raw - 1] : getCategoryForDb(db);
+
           const piValue = pixelInfo.querySelector(".pi-value");
+          const piCategory = pixelInfo.querySelector(".pi-category");
           const piDesc = pixelInfo.querySelector(".pi-desc");
-          piValue.innerHTML = `${db} <span class="pi-unit">dB</span>`;
-          piValue.style.color = getNoiseColor(db);
-          piDesc.textContent = getNoiseDescription(db);
+
+          if (isClassifiedClick) {
+            piValue.innerHTML = `${cat.min}-${cat.max} <span class="pi-unit">dB</span>`;
+          } else {
+            piValue.innerHTML = `${db} <span class="pi-unit">dB</span>`;
+          }
+          piValue.style.color = cat.color;
+          piCategory.textContent = cat.label;
+          piCategory.style.color = cat.color;
+          piDesc.textContent = cat.desc;
           pixelInfo.style.display = "block";
         } else {
           pixelInfo.style.display = "none";
@@ -612,10 +545,7 @@
       }
     });
 
-    // Hide pixel info on map drag
-    view.on("drag", () => {
-      pixelInfo.style.display = "none";
-    });
+    view.on("drag", () => { pixelInfo.style.display = "none"; });
   </script>
 </body>
 </html>
