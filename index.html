@@ -320,7 +320,8 @@
     const [
       Map, MapView, ImageryTileLayer,
       RasterStretchRenderer, RasterShadedReliefRenderer,
-      MultipartColorRamp, AlgorithmicColorRamp, Color
+      MultipartColorRamp, AlgorithmicColorRamp, Color,
+      GraphicsLayer, Graphic, Point
     ] = await $arcgis.import([
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
@@ -329,7 +330,10 @@
       "@arcgis/core/renderers/RasterShadedReliefRenderer.js",
       "@arcgis/core/rest/support/MultipartColorRamp.js",
       "@arcgis/core/rest/support/AlgorithmicColorRamp.js",
-      "@arcgis/core/Color.js"
+      "@arcgis/core/Color.js",
+      "@arcgis/core/layers/GraphicsLayer.js",
+      "@arcgis/core/Graphic.js",
+      "@arcgis/core/geometry/Point.js"
     ]);
 
     // ---- Color ramp with alpha: transparent at 45dB → opaque at 124dB ----
@@ -424,39 +428,21 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- Pulse Overlay: >60dB areas glow with animated pulse ----
-    // Uses same layer data but with a bright hot color ramp, transparent below 60dB
-    const pulseColorRamp = new MultipartColorRamp({
-      colorRamps: [
-        // 45-60dB: fully transparent (no pulse in quiet areas)
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 150, 50, 0]), toColor: new Color([255, 150, 50, 0]), algorithm: "lab-lch" }),
-        // 60-80dB: warm orange fades in
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 160, 60, 60]), toColor: new Color([255, 200, 100, 180]), algorithm: "lab-lch" }),
-        // 80-100dB: bright warm
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 200, 100, 180]), toColor: new Color([255, 230, 180, 230]), algorithm: "lab-lch" }),
-        // 100-124dB: hot white
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 230, 180, 230]), toColor: new Color([255, 255, 230, 255]), algorithm: "lab-lch" })
-      ]
-    });
+    // ---- Sound Wave Vector Layers (3 phases for expanding ring animation) ----
+    const waveColors = [
+      [255, 180, 60],   // wave 1 - warm orange
+      [255, 140, 40],   // wave 2 - deeper orange
+      [255, 100, 30]    // wave 3 - reddish
+    ];
 
-    const pulseRenderer = new RasterStretchRenderer({
-      colorRamp: pulseColorRamp,
-      stretchType: "min-max",
-      statistics: [{ min: 45, max: 124, avg: 70, stddev: 15 }]
-    });
-
-    const pulseLayer = new ImageryTileLayer({
-      url: LAYER_URL,
-      title: "Sound Pulse (>60 dB)",
-      renderer: pulseRenderer,
-      opacity: 0.5,
-      blendMode: "screen",
-      effect: "bloom(2.5, 0.7px, 0) brightness(1.5)",
-      visible: false
-    });
+    const waveLayers = [0, 1, 2].map(i => new GraphicsLayer({
+      title: `Sound Wave ${i + 1}`,
+      visible: false,
+      effect: "bloom(2, 0.5px, 0) brightness(1.4)"
+    }));
 
     // ---- Map & View ----
-    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, pulseLayer] });
+    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, ...waveLayers] });
     const view = new MapView({
       container: "viewDiv", map,
       center: [-98.5, 39.5], zoom: 5,
@@ -481,25 +467,106 @@
     view.watch("scale", (scale) => updateEffectsForScale(scale));
     view.when(() => updateEffectsForScale(view.scale));
 
-    // ---- Sound pulse animation ----
+    // ---- Sound wave vector animation ----
     let pulseActive = false;
     let pulseIntervalId = null;
     let pulseSpeed = 1.0;
     let pulseTime = 0;
+    let sampledPoints = []; // { x, y, db }
 
-    function pulseStep() {
-      pulseTime += 0.05 * pulseSpeed;
-      const wave = (Math.sin(pulseTime * Math.PI * 2) + 1) / 2; // 0 to 1
+    // Sample the raster at a grid of points across the current view
+    async function sampleNoiseGrid() {
+      const ext = view.extent;
+      const cols = 15, rows = 10;
+      const dx = (ext.xmax - ext.xmin) / cols;
+      const dy = (ext.ymax - ext.ymin) / rows;
 
-      // Animate only opacity — effect stays fixed for reliability
-      pulseLayer.opacity = 0.1 + wave * 0.65;
+      const promises = [];
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          const pt = new Point({
+            x: ext.xmin + dx * (c + 0.5),
+            y: ext.ymin + dy * (r + 0.5),
+            spatialReference: ext.spatialReference
+          });
+          promises.push(
+            noiseLayer.identify(pt)
+              .then(res => {
+                const db = res?.value?.[0];
+                return (db && db > 60) ? { x: pt.x, y: pt.y, db } : null;
+              })
+              .catch(() => null)
+          );
+        }
+      }
+
+      const results = await Promise.all(promises);
+      sampledPoints = results.filter(Boolean);
+      console.log(`Sampled ${sampledPoints.length} points > 60 dB`);
+
+      // Create graphics for each wave layer (3 ring phases)
+      waveLayers.forEach((layer, i) => {
+        layer.removeAll();
+        sampledPoints.forEach(p => {
+          layer.addMany([
+            new Graphic({
+              geometry: new Point({ x: p.x, y: p.y, spatialReference: ext.spatialReference }),
+              symbol: {
+                type: "simple-marker",
+                style: "circle",
+                size: 6,
+                color: [waveColors[i][0], waveColors[i][1], waveColors[i][2], 0],
+                outline: {
+                  color: [waveColors[i][0], waveColors[i][1], waveColors[i][2], 200],
+                  width: 2
+                }
+              },
+              attributes: { db: p.db }
+            })
+          ]);
+        });
+      });
     }
 
-    function startPulse() {
+    // Animate: cycle ring sizes with staggered phases
+    function pulseStep() {
+      pulseTime += 0.03 * pulseSpeed;
+
+      waveLayers.forEach((layer, i) => {
+        // Each wave phase offset by 1/3 of a cycle
+        const phase = (pulseTime + i / 3) % 1;
+        const size = 4 + phase * 50;              // 4px → 54px expanding ring
+        const alpha = Math.round(220 * (1 - phase)); // fade out as it expands
+        const width = 2.5 - phase * 1.5;            // line thins as it expands
+
+        layer.graphics.forEach(g => {
+          const db = g.attributes.db;
+          // Louder points get bigger rings
+          const dbScale = 0.6 + ((db - 60) / 64) * 0.8;
+          g.symbol = {
+            type: "simple-marker",
+            style: "circle",
+            size: size * dbScale,
+            color: [0, 0, 0, 0], // hollow ring
+            outline: {
+              color: [waveColors[i][0], waveColors[i][1], waveColors[i][2], alpha],
+              width: Math.max(0.5, width)
+            }
+          };
+        });
+      });
+    }
+
+    async function startPulse() {
+      // Show loading state
+      document.getElementById("togglePulse").disabled = true;
+      waveLayers.forEach(l => { l.visible = true; });
+
+      await sampleNoiseGrid();
+
+      document.getElementById("togglePulse").disabled = false;
       pulseActive = true;
-      pulseLayer.visible = true;
       pulseTime = 0;
-      // Update at 20fps — smooth enough, not too aggressive
       pulseIntervalId = setInterval(pulseStep, 50);
     }
 
@@ -507,9 +574,20 @@
       pulseActive = false;
       if (pulseIntervalId) clearInterval(pulseIntervalId);
       pulseIntervalId = null;
-      pulseLayer.visible = false;
-      pulseLayer.opacity = 0;
+      waveLayers.forEach(l => {
+        l.visible = false;
+        l.removeAll();
+      });
+      sampledPoints = [];
     }
+
+    // Re-sample when user pans/zooms while pulse is active
+    let resampleTimeout = null;
+    view.watch("extent", () => {
+      if (!pulseActive) return;
+      clearTimeout(resampleTimeout);
+      resampleTimeout = setTimeout(() => sampleNoiseGrid(), 800);
+    });
 
     // ---- Current mode tracking ----
     let currentMode = "classified";
@@ -579,8 +657,12 @@
     });
 
     // ---- Sound pulse controls ----
-    document.getElementById("togglePulse").addEventListener("calciteSwitchChange", (e) => {
-      e.target.checked ? startPulse() : stopPulse();
+    document.getElementById("togglePulse").addEventListener("calciteSwitchChange", async (e) => {
+      if (e.target.checked) {
+        await startPulse();
+      } else {
+        stopPulse();
+      }
     });
 
     document.getElementById("pulseSpeedSlider").addEventListener("calciteSliderInput", () => {
