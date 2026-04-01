@@ -231,6 +231,26 @@
           </div>
         </calcite-block>
 
+        <!-- Sound Pulse Animation -->
+        <calcite-block heading="Sound Pulse Animation" open collapsible>
+          <calcite-icon icon="sound-level" slot="icon" scale="s"></calcite-icon>
+
+          <calcite-label layout="inline-space-between">
+            Animate >60 dB zones
+            <calcite-switch id="togglePulse"></calcite-switch>
+          </calcite-label>
+
+          <calcite-label style="margin-top: 10px;">
+            Pulse Speed
+            <div class="slider-row">
+              <calcite-slider id="pulseSpeedSlider" min="0.2" max="3" value="1" step="0.1" snap></calcite-slider>
+              <span class="slider-val" id="pulseSpeedLabel">1.0x</span>
+            </div>
+          </calcite-label>
+
+          <p class="mode-note">Areas above 60 dB pulse with a radiating glow, simulating sound wave propagation from noisy corridors.</p>
+        </calcite-block>
+
         <!-- Layer Controls -->
         <calcite-block heading="Layer Controls" collapsible open>
           <calcite-icon icon="sliders-horizontal" slot="icon" scale="s"></calcite-icon>
@@ -395,7 +415,7 @@
       });
     }
 
-    // ---- Noise Layer ----
+    // ---- Noise Layer (base) ----
     const noiseLayer = new ImageryTileLayer({
       url: LAYER_URL,
       title: "Transportation Noise 2020",
@@ -404,8 +424,39 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
+    // ---- Pulse Overlay: isolate >60dB areas with animated glow ----
+    // Remap: keep 60-124 as-is, drop everything below 60 to NoData
+    const pulseRasterFunction = {
+      functionName: "Remap",
+      functionArguments: {
+        InputRanges: [60, 124],
+        OutputValues: [1],
+        AllowUnmatched: false,
+        raster: "$$"
+      }
+    };
+
+    // Hot white-to-orange colormap for the pulse overlay
+    const pulseColormap = {
+      functionName: "Colormap",
+      functionArguments: {
+        colormap: [[1, 255, 200, 120]],
+        raster: pulseRasterFunction
+      }
+    };
+
+    const pulseLayer = new ImageryTileLayer({
+      url: LAYER_URL,
+      title: "Sound Pulse (>60 dB)",
+      rasterFunction: pulseColormap,
+      opacity: 0,
+      blendMode: "screen",
+      effect: "bloom(3, 0.8px, 0) brightness(1.5)",
+      visible: false
+    });
+
     // ---- Map & View ----
-    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer] });
+    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, pulseLayer] });
     const view = new MapView({
       container: "viewDiv", map,
       center: [-98.5, 39.5], zoom: 5,
@@ -429,6 +480,41 @@
 
     view.watch("scale", (scale) => updateEffectsForScale(scale));
     view.when(() => updateEffectsForScale(view.scale));
+
+    // ---- Sound pulse animation ----
+    let pulseActive = false;
+    let pulseRafId = null;
+    let pulseSpeed = 1.0; // cycles per second
+
+    function animatePulse(timestamp) {
+      if (!pulseActive) return;
+      // Sine wave: 0→1→0 creating a breathing/pulsing effect
+      const cycle = (timestamp / 1000) * pulseSpeed;
+      const wave = (Math.sin(cycle * Math.PI * 2) + 1) / 2; // 0 to 1
+
+      // Pulse opacity: 0.15 → 0.6
+      pulseLayer.opacity = 0.15 + wave * 0.45;
+
+      // Pulse bloom: ramps with the wave
+      const bloom = (1.5 + wave * 3.0).toFixed(1);
+      const radius = (0.3 + wave * 0.6).toFixed(1);
+      pulseLayer.effect = `bloom(${bloom}, ${radius}px, 0) brightness(${(1.2 + wave * 0.8).toFixed(1)})`;
+
+      pulseRafId = requestAnimationFrame(animatePulse);
+    }
+
+    function startPulse() {
+      pulseActive = true;
+      pulseLayer.visible = true;
+      pulseRafId = requestAnimationFrame(animatePulse);
+    }
+
+    function stopPulse() {
+      pulseActive = false;
+      if (pulseRafId) cancelAnimationFrame(pulseRafId);
+      pulseLayer.visible = false;
+      pulseLayer.opacity = 0;
+    }
 
     // ---- Current mode tracking ----
     let currentMode = "classified";
@@ -495,6 +581,16 @@
     });
     document.getElementById("zFactorSlider").addEventListener("calciteSliderInput", () => {
       document.getElementById("zFactorLabel").textContent = document.getElementById("zFactorSlider").value;
+    });
+
+    // ---- Sound pulse controls ----
+    document.getElementById("togglePulse").addEventListener("calciteSwitchChange", (e) => {
+      e.target.checked ? startPulse() : stopPulse();
+    });
+
+    document.getElementById("pulseSpeedSlider").addEventListener("calciteSliderInput", () => {
+      pulseSpeed = parseFloat(document.getElementById("pulseSpeedSlider").value);
+      document.getElementById("pulseSpeedLabel").textContent = pulseSpeed.toFixed(1) + "x";
     });
 
     // ---- Basemap toggle ----
