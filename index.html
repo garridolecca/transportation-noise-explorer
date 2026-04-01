@@ -60,8 +60,8 @@
       height: 18px;
       border-radius: 4px;
       background: linear-gradient(to right,
-        #1a9850, #66bd63, #a6d96a, #d9ef8b,
-        #fee08b, #fdae61, #f46d43, #d73027, #a50026);
+        #00c8dc, #00e676, #c8f032, #ffc800,
+        #ff641e, #e61e64, #b400b4);
     }
     .legend-labels {
       display: flex;
@@ -269,34 +269,91 @@
           <calcite-icon icon="information" slot="icon" scale="s"></calcite-icon>
           <div class="noise-ref">
             <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#1a9850"></div>
+              <div class="noise-ref-dot" style="background:#00c8dc"></div>
               <span>45-55 dB - Quiet suburb, bird calls</span>
             </div>
             <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#a6d96a"></div>
+              <div class="noise-ref-dot" style="background:#00e676"></div>
               <span>55-65 dB - Normal conversation</span>
             </div>
             <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#fee08b"></div>
+              <div class="noise-ref-dot" style="background:#ffc800"></div>
               <span>65-75 dB - Busy traffic, vacuum cleaner</span>
             </div>
             <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#f46d43"></div>
+              <div class="noise-ref-dot" style="background:#ff641e"></div>
               <span>75-85 dB - Heavy traffic, loud restaurant</span>
             </div>
             <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#d73027"></div>
+              <div class="noise-ref-dot" style="background:#e61e64"></div>
               <span>85-100 dB - Motorcycle, power tools</span>
             </div>
             <div class="noise-ref-item">
-              <div class="noise-ref-dot" style="background:#a50026"></div>
+              <div class="noise-ref-dot" style="background:#b400b4"></div>
               <span>100+ dB - Jet takeoff, risk of hearing damage</span>
             </div>
           </div>
         </calcite-block>
 
+        <!-- Visual Effects -->
+        <calcite-block heading="Visual Effects" open collapsible>
+          <calcite-icon icon="effects" slot="icon" scale="s"></calcite-icon>
+
+          <!-- Presets -->
+          <calcite-label>Effect Preset</calcite-label>
+          <calcite-segmented-control id="effectPreset" width="full" scale="s">
+            <calcite-segmented-control-item value="neon" checked>Neon Glow</calcite-segmented-control-item>
+            <calcite-segmented-control-item value="heat">Heatmap</calcite-segmented-control-item>
+            <calcite-segmented-control-item value="xray">X-Ray</calcite-segmented-control-item>
+            <calcite-segmented-control-item value="none">None</calcite-segmented-control-item>
+          </calcite-segmented-control>
+
+          <!-- Bloom -->
+          <calcite-label style="margin-top: 14px;">
+            Bloom Strength
+            <div class="slider-row">
+              <calcite-slider id="bloomSlider" min="0" max="3" value="1.2" step="0.1"
+                snap></calcite-slider>
+              <span class="opacity-value" id="bloomLabel">1.2</span>
+            </div>
+          </calcite-label>
+
+          <!-- Saturate -->
+          <calcite-label>
+            Saturation
+            <div class="slider-row">
+              <calcite-slider id="saturateSlider" min="0" max="4" value="1.4" step="0.1"
+                snap></calcite-slider>
+              <span class="opacity-value" id="saturateLabel">1.4</span>
+            </div>
+          </calcite-label>
+
+          <!-- Brightness -->
+          <calcite-label>
+            Brightness
+            <div class="slider-row">
+              <calcite-slider id="brightnessSlider" min="0.5" max="2.5" value="1.0" step="0.1"
+                snap></calcite-slider>
+              <span class="opacity-value" id="brightnessLabel">1.0</span>
+            </div>
+          </calcite-label>
+
+          <!-- Blend Mode -->
+          <calcite-label style="margin-top: 6px;">
+            Blend Mode
+            <calcite-select id="blendSelect" scale="s">
+              <calcite-option value="screen" selected>Screen</calcite-option>
+              <calcite-option value="color-dodge">Color Dodge</calcite-option>
+              <calcite-option value="lighten">Lighten</calcite-option>
+              <calcite-option value="overlay">Overlay</calcite-option>
+              <calcite-option value="hard-light">Hard Light</calcite-option>
+              <calcite-option value="normal">Normal</calcite-option>
+            </calcite-select>
+          </calcite-label>
+        </calcite-block>
+
         <!-- Layer Controls -->
-        <calcite-block heading="Layer Controls" open collapsible>
+        <calcite-block heading="Layer Controls" collapsible open>
           <calcite-icon icon="sliders-horizontal" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
@@ -307,9 +364,9 @@
           <calcite-label style="margin-top: 10px;">
             Layer Opacity
             <div class="slider-row">
-              <calcite-slider id="opacitySlider" min="0" max="100" value="80" step="5"
+              <calcite-slider id="opacitySlider" min="0" max="100" value="85" step="5"
                 label-handles label-ticks ticks="25" snap></calcite-slider>
-              <span class="opacity-value" id="opacityLabel">80%</span>
+              <span class="opacity-value" id="opacityLabel">85%</span>
             </div>
           </calcite-label>
         </calcite-block>
@@ -356,37 +413,37 @@
       "@arcgis/core/Color.js"
     ]);
 
-    // ---- Color ramp (green → yellow → orange → red → dark red) ----
+    // ---- Color ramp (cyan → green → yellow → orange → magenta → hot pink) ----
     const colorRamp = new MultipartColorRamp({
       colorRamps: [
         new AlgorithmicColorRamp({
-          fromColor: new Color([26, 152, 80]),
-          toColor: new Color([166, 217, 106]),
+          fromColor: new Color([0, 200, 220]),
+          toColor: new Color([0, 230, 118]),
           algorithm: "lab-lch"
         }),
         new AlgorithmicColorRamp({
-          fromColor: new Color([166, 217, 106]),
-          toColor: new Color([254, 224, 139]),
+          fromColor: new Color([0, 230, 118]),
+          toColor: new Color([200, 240, 50]),
           algorithm: "lab-lch"
         }),
         new AlgorithmicColorRamp({
-          fromColor: new Color([254, 224, 139]),
-          toColor: new Color([253, 174, 97]),
+          fromColor: new Color([200, 240, 50]),
+          toColor: new Color([255, 200, 0]),
           algorithm: "lab-lch"
         }),
         new AlgorithmicColorRamp({
-          fromColor: new Color([253, 174, 97]),
-          toColor: new Color([244, 109, 67]),
+          fromColor: new Color([255, 200, 0]),
+          toColor: new Color([255, 100, 30]),
           algorithm: "lab-lch"
         }),
         new AlgorithmicColorRamp({
-          fromColor: new Color([244, 109, 67]),
-          toColor: new Color([215, 48, 39]),
+          fromColor: new Color([255, 100, 30]),
+          toColor: new Color([230, 30, 100]),
           algorithm: "lab-lch"
         }),
         new AlgorithmicColorRamp({
-          fromColor: new Color([215, 48, 39]),
-          toColor: new Color([165, 0, 38]),
+          fromColor: new Color([230, 30, 100]),
+          toColor: new Color([180, 0, 180]),
           algorithm: "lab-lch"
         })
       ]
@@ -398,12 +455,14 @@
       statistics: [{ min: 45, max: 124, avg: 70, stddev: 15 }]
     });
 
-    // ---- Noise layer ----
+    // ---- Noise layer with effects ----
     const noiseLayer = new ImageryTileLayer({
       url: "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer",
       title: "Transportation Noise 2020",
       renderer,
-      opacity: 0.8
+      opacity: 0.85,
+      effect: "bloom(1.2, 0.3px, 0.15) saturate(1.4) drop-shadow(0px, 0px, 6px, rgba(255,100,50,0.4))",
+      blendMode: "screen"
     });
 
     // ---- Map & View ----
@@ -434,6 +493,60 @@
     // ---- Home extent ----
     document.getElementById("btnHomeExtent").addEventListener("click", () => {
       view.goTo({ center: [-98.5, 39.5], zoom: 5 }, { duration: 1000 });
+    });
+
+    // ---- Effect controls ----
+    const bloomSlider = document.getElementById("bloomSlider");
+    const saturateSlider = document.getElementById("saturateSlider");
+    const brightnessSlider = document.getElementById("brightnessSlider");
+    const bloomLabel = document.getElementById("bloomLabel");
+    const saturateLabel = document.getElementById("saturateLabel");
+    const brightnessLabel = document.getElementById("brightnessLabel");
+    const blendSelect = document.getElementById("blendSelect");
+
+    function applyEffects() {
+      const bloom = parseFloat(bloomSlider.value);
+      const sat = parseFloat(saturateSlider.value);
+      const bright = parseFloat(brightnessSlider.value);
+      bloomLabel.textContent = bloom.toFixed(1);
+      saturateLabel.textContent = sat.toFixed(1);
+      brightnessLabel.textContent = bright.toFixed(1);
+
+      const parts = [];
+      if (bloom > 0) parts.push(`bloom(${bloom}, 0.3px, 0.15)`);
+      if (sat !== 1.0) parts.push(`saturate(${sat})`);
+      if (bright !== 1.0) parts.push(`brightness(${bright})`);
+      if (bloom > 0.5) parts.push(`drop-shadow(0px, 0px, ${Math.round(bloom * 5)}px, rgba(255,100,50,0.4))`);
+
+      noiseLayer.effect = parts.length ? parts.join(" ") : null;
+    }
+
+    bloomSlider.addEventListener("calciteSliderInput", applyEffects);
+    saturateSlider.addEventListener("calciteSliderInput", applyEffects);
+    brightnessSlider.addEventListener("calciteSliderInput", applyEffects);
+
+    // Blend mode
+    blendSelect.addEventListener("calciteSelectChange", () => {
+      noiseLayer.blendMode = blendSelect.value;
+    });
+
+    // Effect presets
+    const presets = {
+      neon:  { bloom: 1.2, sat: 1.4, bright: 1.0, blend: "screen" },
+      heat:  { bloom: 2.0, sat: 2.5, bright: 1.3, blend: "color-dodge" },
+      xray:  { bloom: 0.8, sat: 0.3, bright: 1.8, blend: "lighten" },
+      none:  { bloom: 0,   sat: 1.0, bright: 1.0, blend: "normal" }
+    };
+
+    document.getElementById("effectPreset").addEventListener("calciteSegmentedControlChange", (e) => {
+      const p = presets[e.target.value];
+      if (!p) return;
+      bloomSlider.value = p.bloom;
+      saturateSlider.value = p.sat;
+      brightnessSlider.value = p.bright;
+      blendSelect.value = p.blend;
+      noiseLayer.blendMode = p.blend;
+      applyEffects();
     });
 
     // ---- Layer toggle ----
@@ -472,12 +585,12 @@
     }
 
     function getNoiseColor(db) {
-      if (db < 55) return "#1a9850";
-      if (db < 65) return "#a6d96a";
-      if (db < 75) return "#fee08b";
-      if (db < 85) return "#f46d43";
-      if (db < 100) return "#d73027";
-      return "#a50026";
+      if (db < 55) return "#00c8dc";
+      if (db < 65) return "#00e676";
+      if (db < 75) return "#ffc800";
+      if (db < 85) return "#ff641e";
+      if (db < 100) return "#e61e64";
+      return "#b400b4";
     }
 
     view.on("click", async (evt) => {
