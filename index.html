@@ -425,13 +425,17 @@
     });
 
     // ---- Pulse Overlay: >60dB areas glow with animated pulse ----
-    // Stretch renderer: 60-124 range, fully transparent below 60, hot white-orange above
+    // Uses same layer data but with a bright hot color ramp, transparent below 60dB
     const pulseColorRamp = new MultipartColorRamp({
       colorRamps: [
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 180, 80, 0]),   toColor: new Color([255, 180, 80, 0]),   algorithm: "lab-lch" }),  // 45-60: invisible
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 200, 100, 80]), toColor: new Color([255, 220, 150, 160]), algorithm: "lab-lch" }),  // 60-75: warm glow appears
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 220, 150, 160]),toColor: new Color([255, 240, 200, 220]), algorithm: "lab-lch" }),  // 75-100: bright
-        new AlgorithmicColorRamp({ fromColor: new Color([255, 240, 200, 220]),toColor: new Color([255, 255, 240, 255]), algorithm: "lab-lch" })   // 100-124: hot white
+        // 45-60dB: fully transparent (no pulse in quiet areas)
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 150, 50, 0]), toColor: new Color([255, 150, 50, 0]), algorithm: "lab-lch" }),
+        // 60-80dB: warm orange fades in
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 160, 60, 60]), toColor: new Color([255, 200, 100, 180]), algorithm: "lab-lch" }),
+        // 80-100dB: bright warm
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 200, 100, 180]), toColor: new Color([255, 230, 180, 230]), algorithm: "lab-lch" }),
+        // 100-124dB: hot white
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 230, 180, 230]), toColor: new Color([255, 255, 230, 255]), algorithm: "lab-lch" })
       ]
     });
 
@@ -445,9 +449,9 @@
       url: LAYER_URL,
       title: "Sound Pulse (>60 dB)",
       renderer: pulseRenderer,
-      opacity: 0,
+      opacity: 0.5,
       blendMode: "screen",
-      effect: "bloom(3, 0.8px, 0) brightness(1.5)",
+      effect: "bloom(2.5, 0.7px, 0) brightness(1.5)",
       visible: false
     });
 
@@ -479,35 +483,30 @@
 
     // ---- Sound pulse animation ----
     let pulseActive = false;
-    let pulseRafId = null;
-    let pulseSpeed = 1.0; // cycles per second
+    let pulseIntervalId = null;
+    let pulseSpeed = 1.0;
+    let pulseTime = 0;
 
-    function animatePulse(timestamp) {
-      if (!pulseActive) return;
-      // Sine wave: 0→1→0 creating a breathing/pulsing effect
-      const cycle = (timestamp / 1000) * pulseSpeed;
-      const wave = (Math.sin(cycle * Math.PI * 2) + 1) / 2; // 0 to 1
+    function pulseStep() {
+      pulseTime += 0.05 * pulseSpeed;
+      const wave = (Math.sin(pulseTime * Math.PI * 2) + 1) / 2; // 0 to 1
 
-      // Pulse opacity: 0.15 → 0.6
-      pulseLayer.opacity = 0.15 + wave * 0.45;
-
-      // Pulse bloom: ramps with the wave
-      const bloom = (1.5 + wave * 3.0).toFixed(1);
-      const radius = (0.3 + wave * 0.6).toFixed(1);
-      pulseLayer.effect = `bloom(${bloom}, ${radius}px, 0) brightness(${(1.2 + wave * 0.8).toFixed(1)})`;
-
-      pulseRafId = requestAnimationFrame(animatePulse);
+      // Animate only opacity — effect stays fixed for reliability
+      pulseLayer.opacity = 0.1 + wave * 0.65;
     }
 
     function startPulse() {
       pulseActive = true;
       pulseLayer.visible = true;
-      pulseRafId = requestAnimationFrame(animatePulse);
+      pulseTime = 0;
+      // Update at 20fps — smooth enough, not too aggressive
+      pulseIntervalId = setInterval(pulseStep, 50);
     }
 
     function stopPulse() {
       pulseActive = false;
-      if (pulseRafId) cancelAnimationFrame(pulseRafId);
+      if (pulseIntervalId) clearInterval(pulseIntervalId);
+      pulseIntervalId = null;
       pulseLayer.visible = false;
       pulseLayer.opacity = 0;
     }
