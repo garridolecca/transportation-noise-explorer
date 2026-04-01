@@ -342,15 +342,19 @@
   </calcite-shell>
 
   <script type="module">
-    import Map from "https://js.arcgis.com/5.0/esri/Map.js";
-    import MapView from "https://js.arcgis.com/5.0/esri/views/MapView.js";
-    import ImageryTileLayer from "https://js.arcgis.com/5.0/esri/layers/ImageryTileLayer.js";
-    import RasterStretchRenderer from "https://js.arcgis.com/5.0/esri/renderers/RasterStretchRenderer.js";
-    import MultipartColorRamp from "https://js.arcgis.com/5.0/esri/rest/support/MultipartColorRamp.js";
-    import AlgorithmicColorRamp from "https://js.arcgis.com/5.0/esri/rest/support/AlgorithmicColorRamp.js";
-    import Color from "https://js.arcgis.com/5.0/esri/Color.js";
-    import Basemap from "https://js.arcgis.com/5.0/esri/Basemap.js";
-    import * as reactiveUtils from "https://js.arcgis.com/5.0/esri/core/reactiveUtils.js";
+    const [
+      Map, MapView, ImageryTileLayer,
+      RasterStretchRenderer, MultipartColorRamp,
+      AlgorithmicColorRamp, Color
+    ] = await $arcgis.import([
+      "@arcgis/core/Map.js",
+      "@arcgis/core/views/MapView.js",
+      "@arcgis/core/layers/ImageryTileLayer.js",
+      "@arcgis/core/renderers/RasterStretchRenderer.js",
+      "@arcgis/core/rest/support/MultipartColorRamp.js",
+      "@arcgis/core/rest/support/AlgorithmicColorRamp.js",
+      "@arcgis/core/Color.js"
+    ]);
 
     // ---- Color ramp (green → yellow → orange → red → dark red) ----
     const colorRamp = new MultipartColorRamp({
