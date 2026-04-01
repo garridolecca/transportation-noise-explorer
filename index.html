@@ -424,31 +424,27 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- Pulse Overlay: isolate >60dB areas with animated glow ----
-    // Remap: keep 60-124 as-is, drop everything below 60 to NoData
-    const pulseRasterFunction = {
-      functionName: "Remap",
-      functionArguments: {
-        InputRanges: [60, 124],
-        OutputValues: [1],
-        AllowUnmatched: false,
-        raster: "$$"
-      }
-    };
+    // ---- Pulse Overlay: >60dB areas glow with animated pulse ----
+    // Stretch renderer: 60-124 range, fully transparent below 60, hot white-orange above
+    const pulseColorRamp = new MultipartColorRamp({
+      colorRamps: [
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 180, 80, 0]),   toColor: new Color([255, 180, 80, 0]),   algorithm: "lab-lch" }),  // 45-60: invisible
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 200, 100, 80]), toColor: new Color([255, 220, 150, 160]), algorithm: "lab-lch" }),  // 60-75: warm glow appears
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 220, 150, 160]),toColor: new Color([255, 240, 200, 220]), algorithm: "lab-lch" }),  // 75-100: bright
+        new AlgorithmicColorRamp({ fromColor: new Color([255, 240, 200, 220]),toColor: new Color([255, 255, 240, 255]), algorithm: "lab-lch" })   // 100-124: hot white
+      ]
+    });
 
-    // Hot white-to-orange colormap for the pulse overlay
-    const pulseColormap = {
-      functionName: "Colormap",
-      functionArguments: {
-        colormap: [[1, 255, 200, 120]],
-        raster: pulseRasterFunction
-      }
-    };
+    const pulseRenderer = new RasterStretchRenderer({
+      colorRamp: pulseColorRamp,
+      stretchType: "min-max",
+      statistics: [{ min: 45, max: 124, avg: 70, stddev: 15 }]
+    });
 
     const pulseLayer = new ImageryTileLayer({
       url: LAYER_URL,
       title: "Sound Pulse (>60 dB)",
-      rasterFunction: pulseColormap,
+      renderer: pulseRenderer,
       opacity: 0,
       blendMode: "screen",
       effect: "bloom(3, 0.8px, 0) brightness(1.5)",
