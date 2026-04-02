@@ -248,7 +248,7 @@
             </div>
           </calcite-label>
 
-          <p class="mode-note">Areas above 75 dB pulse with radiating rings, simulating sound wave propagation from noisy corridors.</p>
+          <p class="mode-note">Vectorizes the raster: samples 1,000 grid cells, converts >75 dB areas into polygon zones with animated expanding sound wave rings.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -321,7 +321,7 @@
       Map, MapView, ImageryTileLayer,
       RasterStretchRenderer, RasterShadedReliefRenderer,
       MultipartColorRamp, AlgorithmicColorRamp, Color,
-      GraphicsLayer, Graphic, Point
+      GraphicsLayer, Graphic, Point, Polygon
     ] = await $arcgis.import([
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
@@ -333,7 +333,8 @@
       "@arcgis/core/Color.js",
       "@arcgis/core/layers/GraphicsLayer.js",
       "@arcgis/core/Graphic.js",
-      "@arcgis/core/geometry/Point.js"
+      "@arcgis/core/geometry/Point.js",
+      "@arcgis/core/geometry/Polygon.js"
     ]);
 
     // ---- Color ramp with alpha: transparent at 45dB → opaque at 124dB ----
@@ -428,21 +429,23 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- Sound Wave Vector Layers (3 phases for expanding ring animation) ----
-    const waveColors = [
-      [255, 180, 60],   // wave 1 - warm orange
-      [255, 140, 40],   // wave 2 - deeper orange
-      [255, 100, 30]    // wave 3 - reddish
-    ];
+    // ---- Vectorized Noise Zones + Animated Sound Waves ----
+    // Static polygons layer: vectorized cells where noise > 75 dB
+    const noiseZonesLayer = new GraphicsLayer({
+      title: "Noise Zones (>75 dB)",
+      visible: false,
+      opacity: 0.7
+    });
 
+    // 3 animated wave ring layers
     const waveLayers = [0, 1, 2].map(i => new GraphicsLayer({
       title: `Sound Wave ${i + 1}`,
       visible: false,
-      effect: "bloom(2, 0.5px, 0) brightness(1.4)"
+      effect: "bloom(2.5, 0.5px, 0) brightness(1.5)"
     }));
 
     // ---- Map & View ----
-    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, ...waveLayers] });
+    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, noiseZonesLayer, ...waveLayers] });
     const view = new MapView({
       container: "viewDiv", map,
       center: [-98.5, 39.5], zoom: 5,
@@ -467,102 +470,137 @@
     view.watch("scale", (scale) => updateEffectsForScale(scale));
     view.when(() => updateEffectsForScale(view.scale));
 
-    // ---- Sound wave vector animation ----
+    // ---- Vectorized noise zones + animated sound waves ----
     let pulseActive = false;
     let pulseIntervalId = null;
     let pulseSpeed = 1.0;
     let pulseTime = 0;
-    let sampledPoints = []; // { x, y, db }
 
-    // Sample the raster at a grid of points across the current view
-    async function sampleNoiseGrid() {
+    // Color for dB value
+    function getZoneColor(db) {
+      if (db < 85) return [255, 180, 50];    // orange
+      if (db < 100) return [255, 80, 40];    // red-orange
+      return [200, 40, 180];                  // magenta
+    }
+
+    // Sample raster → create polygon cells + wave point graphics
+    async function sampleAndVectorize() {
       const ext = view.extent;
-      const cols = 30, rows = 20;
+      const cols = 40, rows = 25;
       const dx = (ext.xmax - ext.xmin) / cols;
       const dy = (ext.ymax - ext.ymin) / rows;
+      const sr = ext.spatialReference;
 
-      const promises = [];
+      // Batch identify in chunks to avoid overwhelming the service
+      const tasks = [];
       for (let c = 0; c < cols; c++) {
         for (let r = 0; r < rows; r++) {
-          const pt = new Point({
-            x: ext.xmin + dx * (c + 0.5),
-            y: ext.ymin + dy * (r + 0.5),
-            spatialReference: ext.spatialReference
+          tasks.push({ c, r,
+            pt: new Point({ x: ext.xmin + dx * (c + 0.5), y: ext.ymin + dy * (r + 0.5), spatialReference: sr })
           });
-          promises.push(
-            noiseLayer.identify(pt)
-              .then(res => {
-                const db = res?.value?.[0];
-                return (db && db > 75) ? { x: pt.x, y: pt.y, db } : null;
-              })
-              .catch(() => null)
-          );
         }
       }
 
-      const results = await Promise.all(promises);
-      sampledPoints = results.filter(Boolean);
-      console.log(`Sampled ${sampledPoints.length} points > 75 dB`);
+      // Process in batches of 200
+      const hits = [];
+      for (let i = 0; i < tasks.length; i += 200) {
+        const batch = tasks.slice(i, i + 200);
+        const results = await Promise.all(
+          batch.map(t =>
+            noiseLayer.identify(t.pt)
+              .then(res => {
+                const db = res?.value?.[0];
+                return (db && db > 75) ? { c: t.c, r: t.r, x: t.pt.x, y: t.pt.y, db } : null;
+              })
+              .catch(() => null)
+          )
+        );
+        hits.push(...results.filter(Boolean));
+      }
 
-      // Create graphics for each wave layer (3 ring phases)
-      waveLayers.forEach((layer, i) => {
-        layer.removeAll();
-        sampledPoints.forEach(p => {
-          layer.addMany([
-            new Graphic({
-              geometry: new Point({ x: p.x, y: p.y, spatialReference: ext.spatialReference }),
-              symbol: {
-                type: "simple-marker",
-                style: "circle",
-                size: 6,
-                color: [waveColors[i][0], waveColors[i][1], waveColors[i][2], 0],
-                outline: {
-                  color: [waveColors[i][0], waveColors[i][1], waveColors[i][2], 200],
-                  width: 2
-                }
-              },
-              attributes: { db: p.db }
-            })
-          ]);
-        });
+      console.log(`Vectorized ${hits.length} cells > 75 dB from ${tasks.length} samples`);
+
+      // Clear all layers
+      noiseZonesLayer.removeAll();
+      waveLayers.forEach(l => l.removeAll());
+
+      // Create polygon cell for each hit + wave point
+      const zoneGraphics = [];
+      const waveGraphics = [[], [], []];
+
+      hits.forEach(h => {
+        const xmin = h.x - dx / 2;
+        const ymin = h.y - dy / 2;
+        const xmax = h.x + dx / 2;
+        const ymax = h.y + dy / 2;
+        const color = getZoneColor(h.db);
+        const alpha = Math.round(80 + ((h.db - 75) / 49) * 150); // 80-230
+
+        // Polygon cell
+        zoneGraphics.push(new Graphic({
+          geometry: new Polygon({
+            rings: [[[xmin, ymin], [xmin, ymax], [xmax, ymax], [xmax, ymin], [xmin, ymin]]],
+            spatialReference: sr
+          }),
+          symbol: {
+            type: "simple-fill",
+            color: [color[0], color[1], color[2], alpha],
+            outline: { color: [color[0], color[1], color[2], Math.min(255, alpha + 40)], width: 0.5 }
+          },
+          attributes: { db: h.db }
+        }));
+
+        // Wave ring point (one per wave layer)
+        for (let w = 0; w < 3; w++) {
+          waveGraphics[w].push(new Graphic({
+            geometry: new Point({ x: h.x, y: h.y, spatialReference: sr }),
+            symbol: {
+              type: "simple-marker",
+              style: "circle",
+              size: 4,
+              color: [0, 0, 0, 0],
+              outline: { color: [color[0], color[1], color[2], 180], width: 2 }
+            },
+            attributes: { db: h.db, color }
+          }));
+        }
       });
+
+      noiseZonesLayer.addMany(zoneGraphics);
+      waveLayers.forEach((l, i) => l.addMany(waveGraphics[i]));
     }
 
-    // Animate: cycle ring sizes with staggered phases
+    // Animate wave rings: expanding + fading, 3 staggered phases
     function pulseStep() {
       pulseTime += 0.03 * pulseSpeed;
 
       waveLayers.forEach((layer, i) => {
-        // Each wave phase offset by 1/3 of a cycle
-        const phase = (pulseTime + i / 3) % 1;
-        const size = 4 + phase * 50;              // 4px → 54px expanding ring
-        const alpha = Math.round(220 * (1 - phase)); // fade out as it expands
-        const width = 2.5 - phase * 1.5;            // line thins as it expands
+        const phase = (pulseTime + i / 3) % 1;        // 0→1 cycle, offset per layer
+        const size = 3 + phase * 45;                    // 3→48px expanding
+        const alpha = Math.round(200 * (1 - phase));    // fade out
+        const width = 2.5 - phase * 2;                  // thins as expands
 
         layer.graphics.forEach(g => {
-          const db = g.attributes.db;
-          // Louder points get bigger rings
-          const dbScale = 0.6 + ((db - 75) / 49) * 1.0;
+          const c = g.attributes.color;
+          const dbScale = 0.5 + ((g.attributes.db - 75) / 49) * 1.2;
           g.symbol = {
             type: "simple-marker",
             style: "circle",
             size: size * dbScale,
-            color: [0, 0, 0, 0], // hollow ring
-            outline: {
-              color: [waveColors[i][0], waveColors[i][1], waveColors[i][2], alpha],
-              width: Math.max(0.5, width)
-            }
+            color: [0, 0, 0, 0],
+            outline: { color: [c[0], c[1], c[2], alpha], width: Math.max(0.3, width) }
           };
         });
       });
     }
 
     async function startPulse() {
-      // Show loading state
       document.getElementById("togglePulse").disabled = true;
+
+      noiseZonesLayer.visible = true;
       waveLayers.forEach(l => { l.visible = true; });
 
-      await sampleNoiseGrid();
+      await sampleAndVectorize();
 
       document.getElementById("togglePulse").disabled = false;
       pulseActive = true;
@@ -574,19 +612,17 @@
       pulseActive = false;
       if (pulseIntervalId) clearInterval(pulseIntervalId);
       pulseIntervalId = null;
-      waveLayers.forEach(l => {
-        l.visible = false;
-        l.removeAll();
-      });
-      sampledPoints = [];
+      noiseZonesLayer.visible = false;
+      noiseZonesLayer.removeAll();
+      waveLayers.forEach(l => { l.visible = false; l.removeAll(); });
     }
 
-    // Re-sample when user pans/zooms while pulse is active
+    // Re-sample on pan/zoom while active
     let resampleTimeout = null;
     view.watch("extent", () => {
       if (!pulseActive) return;
       clearTimeout(resampleTimeout);
-      resampleTimeout = setTimeout(() => sampleNoiseGrid(), 800);
+      resampleTimeout = setTimeout(() => sampleAndVectorize(), 1000);
     });
 
     // ---- Current mode tracking ----
