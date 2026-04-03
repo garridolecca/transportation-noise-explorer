@@ -250,9 +250,9 @@
 
           <div class="cls-legend" style="margin-top: 8px;">
             <div class="cls-item">
-              <div class="cls-swatch" style="background:#ff6ec7; border-color:#ff6ec7;"></div>
+              <div class="cls-swatch" style="background:#ffaa1e; border-color:#ffaa1e;"></div>
               <span class="cls-label">Aviation Noise</span>
-              <span class="cls-range">Near airports</span>
+              <span class="cls-range">Within 3 mi of airport</span>
             </div>
             <div class="cls-item">
               <div class="cls-swatch" style="background:#00e5ff; border-color:#00e5ff;"></div>
@@ -261,7 +261,7 @@
             </div>
           </div>
 
-          <p class="mode-note">Polylines extracted at 65 dB via marching squares. Aviation contours identified within 8 km of FAA airports. Served from ArcGIS Online.</p>
+          <p class="mode-note">1,000 polylines at 65 dB via marching squares. Cross-referenced against 19,615 FAA airports (3 mi proximity). Click a line for details.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -329,7 +329,7 @@
 
   <script type="module">
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
-    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_65db_aviation_roadrail/FeatureServer/0";
+    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_65db_3mi_v2/FeatureServer/0";
 
     const [
       Map, MapView, ImageryTileLayer, FeatureLayer,
@@ -474,8 +474,8 @@
       });
     }
 
-    // Aviation: hot pink/magenta glow
-    const aviationSymbol = makeCIMLine([255, 110, 199, 50], [255, 110, 199, 255], [255, 210, 240, 200]);
+    // Aviation: warm amber/orange glow
+    const aviationSymbol = makeCIMLine([255, 160, 0, 50], [255, 170, 30, 255], [255, 230, 150, 200]);
     // Road/Rail: electric cyan/teal glow
     const roadRailSymbol = makeCIMLine([0, 229, 255, 50], [0, 229, 255, 255], [180, 255, 255, 200]);
 
