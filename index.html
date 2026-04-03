@@ -231,24 +231,29 @@
           </div>
         </calcite-block>
 
-        <!-- Sound Pulse Animation -->
-        <calcite-block heading="Sound Pulse Animation" open collapsible>
+        <!-- Animated Noise Contours -->
+        <calcite-block heading="Sound Wave Animation" open collapsible>
           <calcite-icon icon="sound-level" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
-            Animate >75 dB zones
-            <calcite-switch id="togglePulse"></calcite-switch>
+            Show 75 dB Contours
+            <calcite-switch id="toggleContours"></calcite-switch>
+          </calcite-label>
+
+          <calcite-label layout="inline-space-between" style="margin-top: 8px;">
+            Animate Flow
+            <calcite-switch id="toggleFlow"></calcite-switch>
           </calcite-label>
 
           <calcite-label style="margin-top: 10px;">
-            Pulse Speed
+            Flow Speed
             <div class="slider-row">
-              <calcite-slider id="pulseSpeedSlider" min="0.2" max="3" value="1" step="0.1" snap></calcite-slider>
-              <span class="slider-val" id="pulseSpeedLabel">1.0x</span>
+              <calcite-slider id="flowSpeedSlider" min="0.5" max="5" value="2" step="0.5" snap></calcite-slider>
+              <span class="slider-val" id="flowSpeedLabel">2.0x</span>
             </div>
           </calcite-label>
 
-          <p class="mode-note">Vectorizes the raster: samples 1,000 grid cells, converts >75 dB areas into polygon zones with animated expanding sound wave rings.</p>
+          <p class="mode-note">75 dB noise contour polylines extracted from the raster via marching squares and published to ArcGIS Online. Animated dashes simulate sound energy flowing along transportation corridors.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -318,23 +323,22 @@
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
 
     const [
-      Map, MapView, ImageryTileLayer,
+      Map, MapView, ImageryTileLayer, FeatureLayer,
       RasterStretchRenderer, RasterShadedReliefRenderer,
       MultipartColorRamp, AlgorithmicColorRamp, Color,
-      GraphicsLayer, Graphic, Point, Polygon
+      CIMSymbol, SimpleRenderer
     ] = await $arcgis.import([
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
       "@arcgis/core/layers/ImageryTileLayer.js",
+      "@arcgis/core/layers/FeatureLayer.js",
       "@arcgis/core/renderers/RasterStretchRenderer.js",
       "@arcgis/core/renderers/RasterShadedReliefRenderer.js",
       "@arcgis/core/rest/support/MultipartColorRamp.js",
       "@arcgis/core/rest/support/AlgorithmicColorRamp.js",
       "@arcgis/core/Color.js",
-      "@arcgis/core/layers/GraphicsLayer.js",
-      "@arcgis/core/Graphic.js",
-      "@arcgis/core/geometry/Point.js",
-      "@arcgis/core/geometry/Polygon.js"
+      "@arcgis/core/symbols/CIMSymbol.js",
+      "@arcgis/core/renderers/SimpleRenderer.js"
     ]);
 
     // ---- Color ramp with alpha: transparent at 45dB → opaque at 124dB ----
@@ -429,23 +433,75 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- Vectorized Noise Zones + Animated Sound Waves ----
-    // Static polygons layer: vectorized cells where noise > 75 dB
-    const noiseZonesLayer = new GraphicsLayer({
-      title: "Noise Zones (>75 dB)",
+    // ---- Hosted 75dB Contour Polyline Layer ----
+    const CONTOUR_URL = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_contours_75db/FeatureServer/0";
+
+    function makeCIMLineSymbol(offset) {
+      return new CIMSymbol({
+        data: {
+          type: "CIMSymbolReference",
+          symbol: {
+            type: "CIMLineSymbol",
+            symbolLayers: [
+              // Glow layer (wider, semi-transparent)
+              {
+                type: "CIMSolidStroke",
+                enable: true,
+                width: 6,
+                color: [255, 140, 40, 60],
+                capStyle: "Round",
+                joinStyle: "Round"
+              },
+              // Animated dash layer
+              {
+                type: "CIMSolidStroke",
+                enable: true,
+                width: 3,
+                color: [255, 200, 80, 255],
+                capStyle: "Round",
+                joinStyle: "Round",
+                effects: [
+                  {
+                    type: "CIMGeometricEffectDashes",
+                    dashTemplate: [12, 8],
+                    lineDashEnding: "NoConstraint",
+                    offsetAlongLine: offset
+                  }
+                ]
+              },
+              // Bright core dots
+              {
+                type: "CIMSolidStroke",
+                enable: true,
+                width: 1.5,
+                color: [255, 255, 220, 200],
+                capStyle: "Round",
+                joinStyle: "Round",
+                effects: [
+                  {
+                    type: "CIMGeometricEffectDashes",
+                    dashTemplate: [4, 16],
+                    lineDashEnding: "NoConstraint",
+                    offsetAlongLine: offset * 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      });
+    }
+
+    const contourLayer = new FeatureLayer({
+      url: CONTOUR_URL,
+      title: "Noise Contours 75 dB",
       visible: false,
-      opacity: 0.7
+      renderer: new SimpleRenderer({ symbol: makeCIMLineSymbol(0) }),
+      effect: "bloom(2, 0.5px, 0.1) brightness(1.3)"
     });
 
-    // 3 animated wave ring layers
-    const waveLayers = [0, 1, 2].map(i => new GraphicsLayer({
-      title: `Sound Wave ${i + 1}`,
-      visible: false,
-      effect: "bloom(2.5, 0.5px, 0) brightness(1.5)"
-    }));
-
     // ---- Map & View ----
-    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, noiseZonesLayer, ...waveLayers] });
+    const map = new Map({ basemap: "dark-gray-vector", layers: [noiseLayer, contourLayer] });
     const view = new MapView({
       container: "viewDiv", map,
       center: [-98.5, 39.5], zoom: 5,
@@ -470,160 +526,29 @@
     view.watch("scale", (scale) => updateEffectsForScale(scale));
     view.when(() => updateEffectsForScale(view.scale));
 
-    // ---- Vectorized noise zones + animated sound waves ----
-    let pulseActive = false;
-    let pulseIntervalId = null;
-    let pulseSpeed = 1.0;
-    let pulseTime = 0;
+    // ---- Animated contour line flow ----
+    let flowActive = false;
+    let flowIntervalId = null;
+    let flowSpeed = 2.0;
+    let flowOffset = 0;
 
-    // Color for dB value
-    function getZoneColor(db) {
-      if (db < 85) return [255, 180, 50];    // orange
-      if (db < 100) return [255, 80, 40];    // red-orange
-      return [200, 40, 180];                  // magenta
-    }
-
-    // Sample raster → create polygon cells + wave point graphics
-    async function sampleAndVectorize() {
-      const ext = view.extent;
-      const cols = 40, rows = 25;
-      const dx = (ext.xmax - ext.xmin) / cols;
-      const dy = (ext.ymax - ext.ymin) / rows;
-      const sr = ext.spatialReference;
-
-      // Batch identify in chunks to avoid overwhelming the service
-      const tasks = [];
-      for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
-          tasks.push({ c, r,
-            pt: new Point({ x: ext.xmin + dx * (c + 0.5), y: ext.ymin + dy * (r + 0.5), spatialReference: sr })
-          });
-        }
-      }
-
-      // Process in batches of 200
-      const hits = [];
-      for (let i = 0; i < tasks.length; i += 200) {
-        const batch = tasks.slice(i, i + 200);
-        const results = await Promise.all(
-          batch.map(t =>
-            noiseLayer.identify(t.pt)
-              .then(res => {
-                const db = res?.value?.[0];
-                return (db && db > 75) ? { c: t.c, r: t.r, x: t.pt.x, y: t.pt.y, db } : null;
-              })
-              .catch(() => null)
-          )
-        );
-        hits.push(...results.filter(Boolean));
-      }
-
-      console.log(`Vectorized ${hits.length} cells > 75 dB from ${tasks.length} samples`);
-
-      // Clear all layers
-      noiseZonesLayer.removeAll();
-      waveLayers.forEach(l => l.removeAll());
-
-      // Create polygon cell for each hit + wave point
-      const zoneGraphics = [];
-      const waveGraphics = [[], [], []];
-
-      hits.forEach(h => {
-        const xmin = h.x - dx / 2;
-        const ymin = h.y - dy / 2;
-        const xmax = h.x + dx / 2;
-        const ymax = h.y + dy / 2;
-        const color = getZoneColor(h.db);
-        const alpha = Math.round(80 + ((h.db - 75) / 49) * 150); // 80-230
-
-        // Polygon cell
-        zoneGraphics.push(new Graphic({
-          geometry: new Polygon({
-            rings: [[[xmin, ymin], [xmin, ymax], [xmax, ymax], [xmax, ymin], [xmin, ymin]]],
-            spatialReference: sr
-          }),
-          symbol: {
-            type: "simple-fill",
-            color: [color[0], color[1], color[2], alpha],
-            outline: { color: [color[0], color[1], color[2], Math.min(255, alpha + 40)], width: 0.5 }
-          },
-          attributes: { db: h.db }
-        }));
-
-        // Wave ring point (one per wave layer)
-        for (let w = 0; w < 3; w++) {
-          waveGraphics[w].push(new Graphic({
-            geometry: new Point({ x: h.x, y: h.y, spatialReference: sr }),
-            symbol: {
-              type: "simple-marker",
-              style: "circle",
-              size: 4,
-              color: [0, 0, 0, 0],
-              outline: { color: [color[0], color[1], color[2], 180], width: 2 }
-            },
-            attributes: { db: h.db, color }
-          }));
-        }
-      });
-
-      noiseZonesLayer.addMany(zoneGraphics);
-      waveLayers.forEach((l, i) => l.addMany(waveGraphics[i]));
-    }
-
-    // Animate wave rings: expanding + fading, 3 staggered phases
-    function pulseStep() {
-      pulseTime += 0.03 * pulseSpeed;
-
-      waveLayers.forEach((layer, i) => {
-        const phase = (pulseTime + i / 3) % 1;        // 0→1 cycle, offset per layer
-        const size = 3 + phase * 45;                    // 3→48px expanding
-        const alpha = Math.round(200 * (1 - phase));    // fade out
-        const width = 2.5 - phase * 2;                  // thins as expands
-
-        layer.graphics.forEach(g => {
-          const c = g.attributes.color;
-          const dbScale = 0.5 + ((g.attributes.db - 75) / 49) * 1.2;
-          g.symbol = {
-            type: "simple-marker",
-            style: "circle",
-            size: size * dbScale,
-            color: [0, 0, 0, 0],
-            outline: { color: [c[0], c[1], c[2], alpha], width: Math.max(0.3, width) }
-          };
-        });
+    function flowStep() {
+      flowOffset = (flowOffset + flowSpeed * 0.5) % 20; // cycle through dash pattern length
+      contourLayer.renderer = new SimpleRenderer({
+        symbol: makeCIMLineSymbol(flowOffset)
       });
     }
 
-    async function startPulse() {
-      document.getElementById("togglePulse").disabled = true;
-
-      noiseZonesLayer.visible = true;
-      waveLayers.forEach(l => { l.visible = true; });
-
-      await sampleAndVectorize();
-
-      document.getElementById("togglePulse").disabled = false;
-      pulseActive = true;
-      pulseTime = 0;
-      pulseIntervalId = setInterval(pulseStep, 50);
+    function startFlow() {
+      flowActive = true;
+      flowIntervalId = setInterval(flowStep, 60);
     }
 
-    function stopPulse() {
-      pulseActive = false;
-      if (pulseIntervalId) clearInterval(pulseIntervalId);
-      pulseIntervalId = null;
-      noiseZonesLayer.visible = false;
-      noiseZonesLayer.removeAll();
-      waveLayers.forEach(l => { l.visible = false; l.removeAll(); });
+    function stopFlow() {
+      flowActive = false;
+      if (flowIntervalId) clearInterval(flowIntervalId);
+      flowIntervalId = null;
     }
-
-    // Re-sample on pan/zoom while active
-    let resampleTimeout = null;
-    view.watch("extent", () => {
-      if (!pulseActive) return;
-      clearTimeout(resampleTimeout);
-      resampleTimeout = setTimeout(() => sampleAndVectorize(), 1000);
-    });
 
     // ---- Current mode tracking ----
     let currentMode = "classified";
@@ -692,18 +617,24 @@
       document.getElementById("zFactorLabel").textContent = document.getElementById("zFactorSlider").value;
     });
 
-    // ---- Sound pulse controls ----
-    document.getElementById("togglePulse").addEventListener("calciteSwitchChange", async (e) => {
+    // ---- Contour + flow controls ----
+    document.getElementById("toggleContours").addEventListener("calciteSwitchChange", (e) => {
+      contourLayer.visible = e.target.checked;
+    });
+
+    document.getElementById("toggleFlow").addEventListener("calciteSwitchChange", (e) => {
       if (e.target.checked) {
-        await startPulse();
+        contourLayer.visible = true;
+        document.getElementById("toggleContours").checked = true;
+        startFlow();
       } else {
-        stopPulse();
+        stopFlow();
       }
     });
 
-    document.getElementById("pulseSpeedSlider").addEventListener("calciteSliderInput", () => {
-      pulseSpeed = parseFloat(document.getElementById("pulseSpeedSlider").value);
-      document.getElementById("pulseSpeedLabel").textContent = pulseSpeed.toFixed(1) + "x";
+    document.getElementById("flowSpeedSlider").addEventListener("calciteSliderInput", () => {
+      flowSpeed = parseFloat(document.getElementById("flowSpeedSlider").value);
+      document.getElementById("flowSpeedLabel").textContent = flowSpeed.toFixed(1) + "x";
     });
 
     // ---- Basemap toggle ----
