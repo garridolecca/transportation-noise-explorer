@@ -236,7 +236,7 @@
           <calcite-icon icon="sound-level" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
-            Show 75 dB Contours
+            Show 60 dB Contours
             <calcite-switch id="toggleContours"></calcite-switch>
           </calcite-label>
 
@@ -253,7 +253,7 @@
             </div>
           </calcite-label>
 
-          <p class="mode-note">75 dB noise contour polylines extracted from the raster via marching squares and published to ArcGIS Online. Animated dashes simulate sound energy flowing along transportation corridors.</p>
+          <p class="mode-note">60 dB noise contour polylines extracted from the raster via marching squares and published to ArcGIS Online. Animated dashes simulate sound energy flowing along transportation corridors.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -321,25 +321,41 @@
 
   <script type="module">
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
+    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_contours_60db_v2/FeatureServer/0";
 
     const [
-      Map, MapView, ImageryTileLayer, GeoJSONLayer,
+      Map, MapView, ImageryTileLayer, FeatureLayer,
       RasterStretchRenderer, RasterShadedReliefRenderer,
       MultipartColorRamp, AlgorithmicColorRamp, Color,
-      CIMSymbol, SimpleRenderer
+      CIMSymbol, SimpleRenderer, esriId
     ] = await $arcgis.import([
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
       "@arcgis/core/layers/ImageryTileLayer.js",
-      "@arcgis/core/layers/GeoJSONLayer.js",
+      "@arcgis/core/layers/FeatureLayer.js",
       "@arcgis/core/renderers/RasterStretchRenderer.js",
       "@arcgis/core/renderers/RasterShadedReliefRenderer.js",
       "@arcgis/core/rest/support/MultipartColorRamp.js",
       "@arcgis/core/rest/support/AlgorithmicColorRamp.js",
       "@arcgis/core/Color.js",
       "@arcgis/core/symbols/CIMSymbol.js",
-      "@arcgis/core/renderers/SimpleRenderer.js"
+      "@arcgis/core/renderers/SimpleRenderer.js",
+      "@arcgis/core/identity/IdentityManager.js"
     ]);
+
+    // ---- Authenticate to access private AGOL Feature Service ----
+    const tokenRes = await fetch("https://www.arcgis.com/sharing/rest/generateToken", {
+      method: "POST",
+      body: new URLSearchParams({
+        username: "agent_demo", password: "agent_demo1234*",
+        referer: window.location.origin, expiration: 120, f: "json"
+      })
+    });
+    const { token, expires } = await tokenRes.json();
+    esriId.registerToken({
+      server: "https://services2.arcgis.com/cPVqgcKAQtE6xCja",
+      token, expires
+    });
 
     // ---- Color ramp with alpha: transparent at 45dB → opaque at 124dB ----
     // Alpha progression: 0 → 50 → 120 → 190 → 230 → 255
@@ -433,8 +449,7 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- 75dB Contour Polyline Layer (GeoJSON hosted on GitHub Pages) ----
-    const CONTOUR_URL = new URL("noise-contours-75db.geojson", window.location.href).href;
+    // ---- 60dB Contour Polyline Layer (AGOL Feature Service) ----
 
     function makeCIMLineSymbol(offset) {
       return new CIMSymbol({
@@ -492,9 +507,9 @@
       });
     }
 
-    const contourLayer = new GeoJSONLayer({
-      url: CONTOUR_URL,
-      title: "Noise Contours 75 dB",
+    const contourLayer = new FeatureLayer({
+      url: CONTOUR_SERVICE,
+      title: "Noise Contours 60 dB",
       visible: false,
       renderer: new SimpleRenderer({ symbol: makeCIMLineSymbol(0) }),
       effect: "bloom(2, 0.5px, 0.1) brightness(1.3)"
