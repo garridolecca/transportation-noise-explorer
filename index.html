@@ -232,28 +232,23 @@
         </calcite-block>
 
         <!-- Animated Noise Contours -->
-        <calcite-block heading="Sound Wave Animation" open collapsible>
-          <calcite-icon icon="sound-level" slot="icon" scale="s"></calcite-icon>
+        <calcite-block heading="Noise Contour Lines" open collapsible>
+          <calcite-icon icon="line" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
             Show 60 dB Contours
             <calcite-switch id="toggleContours"></calcite-switch>
           </calcite-label>
 
-          <calcite-label layout="inline-space-between" style="margin-top: 8px;">
-            Animate Flow
-            <calcite-switch id="toggleFlow"></calcite-switch>
-          </calcite-label>
-
           <calcite-label style="margin-top: 10px;">
-            Flow Speed
+            Pulse Intensity
             <div class="slider-row">
-              <calcite-slider id="flowSpeedSlider" min="0.5" max="5" value="2" step="0.5" snap></calcite-slider>
-              <span class="slider-val" id="flowSpeedLabel">2.0x</span>
+              <calcite-slider id="pulseIntensitySlider" min="0" max="3" value="1.5" step="0.1" snap></calcite-slider>
+              <span class="slider-val" id="pulseIntensityLabel">1.5</span>
             </div>
           </calcite-label>
 
-          <p class="mode-note">60 dB noise contour polylines extracted from the raster via marching squares and published to ArcGIS Online. Animated dashes simulate sound energy flowing along transportation corridors.</p>
+          <p class="mode-note">1,000 polylines extracted from the raster at the 60 dB threshold via marching squares. Served from ArcGIS Online as a hosted Feature Service with pulsing glow.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -450,69 +445,50 @@
     });
 
     // ---- 60dB Contour Polyline Layer (AGOL Feature Service) ----
-
-    function makeCIMLineSymbol(offset) {
-      return new CIMSymbol({
-        data: {
-          type: "CIMSymbolReference",
-          symbol: {
-            type: "CIMLineSymbol",
-            symbolLayers: [
-              // Glow layer (wider, semi-transparent)
-              {
-                type: "CIMSolidStroke",
-                enable: true,
-                width: 6,
-                color: [255, 140, 40, 60],
-                capStyle: "Round",
-                joinStyle: "Round"
-              },
-              // Animated dash layer
-              {
-                type: "CIMSolidStroke",
-                enable: true,
-                width: 3,
-                color: [255, 200, 80, 255],
-                capStyle: "Round",
-                joinStyle: "Round",
-                effects: [
-                  {
-                    type: "CIMGeometricEffectDashes",
-                    dashTemplate: [12, 8],
-                    lineDashEnding: "NoConstraint",
-                    offsetAlongLine: offset
-                  }
-                ]
-              },
-              // Bright core dots
-              {
-                type: "CIMSolidStroke",
-                enable: true,
-                width: 1.5,
-                color: [255, 255, 220, 200],
-                capStyle: "Round",
-                joinStyle: "Round",
-                effects: [
-                  {
-                    type: "CIMGeometricEffectDashes",
-                    dashTemplate: [4, 16],
-                    lineDashEnding: "NoConstraint",
-                    offsetAlongLine: offset * 0.7
-                  }
-                ]
-              }
-            ]
-          }
+    const contourSymbol = new CIMSymbol({
+      data: {
+        type: "CIMSymbolReference",
+        symbol: {
+          type: "CIMLineSymbol",
+          symbolLayers: [
+            // Outer glow
+            {
+              type: "CIMSolidStroke",
+              enable: true,
+              width: 8,
+              color: [255, 120, 20, 40],
+              capStyle: "Round",
+              joinStyle: "Round"
+            },
+            // Main line
+            {
+              type: "CIMSolidStroke",
+              enable: true,
+              width: 2.5,
+              color: [255, 190, 60, 255],
+              capStyle: "Round",
+              joinStyle: "Round"
+            },
+            // Bright core
+            {
+              type: "CIMSolidStroke",
+              enable: true,
+              width: 1,
+              color: [255, 255, 200, 200],
+              capStyle: "Round",
+              joinStyle: "Round"
+            }
+          ]
         }
-      });
-    }
+      }
+    });
 
     const contourLayer = new FeatureLayer({
       url: CONTOUR_SERVICE,
       title: "Noise Contours 60 dB",
       visible: false,
-      renderer: new SimpleRenderer({ symbol: makeCIMLineSymbol(0) }),
-      effect: "bloom(2, 0.5px, 0.1) brightness(1.3)"
+      renderer: new SimpleRenderer({ symbol: contourSymbol }),
+      effect: "bloom(1.5, 0.4px, 0.1) brightness(1.2)"
     });
 
     // ---- Map & View ----
@@ -541,28 +517,28 @@
     view.watch("scale", (scale) => updateEffectsForScale(scale));
     view.when(() => updateEffectsForScale(view.scale));
 
-    // ---- Animated contour line flow ----
-    let flowActive = false;
-    let flowIntervalId = null;
-    let flowSpeed = 2.0;
-    let flowOffset = 0;
+    // ---- Contour pulse animation (pulsing bloom on the line layer) ----
+    let contourPulseId = null;
+    let contourPulseTime = 0;
+    let pulseIntensity = 1.5;
 
-    function flowStep() {
-      flowOffset = (flowOffset + flowSpeed * 0.5) % 20; // cycle through dash pattern length
-      contourLayer.renderer = new SimpleRenderer({
-        symbol: makeCIMLineSymbol(flowOffset)
-      });
+    function contourPulseStep() {
+      contourPulseTime += 0.04;
+      const wave = (Math.sin(contourPulseTime * Math.PI * 2) + 1) / 2;
+      const bloom = (0.8 + wave * pulseIntensity * 2).toFixed(1);
+      const bright = (1.0 + wave * pulseIntensity * 0.4).toFixed(1);
+      contourLayer.effect = `bloom(${bloom}, ${(0.2 + wave * 0.6).toFixed(1)}px, 0.05) brightness(${bright})`;
     }
 
-    function startFlow() {
-      flowActive = true;
-      flowIntervalId = setInterval(flowStep, 60);
+    function startContourPulse() {
+      contourPulseTime = 0;
+      contourPulseId = setInterval(contourPulseStep, 50);
     }
 
-    function stopFlow() {
-      flowActive = false;
-      if (flowIntervalId) clearInterval(flowIntervalId);
-      flowIntervalId = null;
+    function stopContourPulse() {
+      if (contourPulseId) clearInterval(contourPulseId);
+      contourPulseId = null;
+      contourLayer.effect = "bloom(1.5, 0.4px, 0.1) brightness(1.2)";
     }
 
     // ---- Current mode tracking ----
@@ -632,24 +608,19 @@
       document.getElementById("zFactorLabel").textContent = document.getElementById("zFactorSlider").value;
     });
 
-    // ---- Contour + flow controls ----
+    // ---- Contour controls ----
     document.getElementById("toggleContours").addEventListener("calciteSwitchChange", (e) => {
       contourLayer.visible = e.target.checked;
-    });
-
-    document.getElementById("toggleFlow").addEventListener("calciteSwitchChange", (e) => {
       if (e.target.checked) {
-        contourLayer.visible = true;
-        document.getElementById("toggleContours").checked = true;
-        startFlow();
+        startContourPulse();
       } else {
-        stopFlow();
+        stopContourPulse();
       }
     });
 
-    document.getElementById("flowSpeedSlider").addEventListener("calciteSliderInput", () => {
-      flowSpeed = parseFloat(document.getElementById("flowSpeedSlider").value);
-      document.getElementById("flowSpeedLabel").textContent = flowSpeed.toFixed(1) + "x";
+    document.getElementById("pulseIntensitySlider").addEventListener("calciteSliderInput", () => {
+      pulseIntensity = parseFloat(document.getElementById("pulseIntensitySlider").value);
+      document.getElementById("pulseIntensityLabel").textContent = pulseIntensity.toFixed(1);
     });
 
     // ---- Basemap toggle ----
