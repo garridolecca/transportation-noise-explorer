@@ -231,12 +231,12 @@
           </div>
         </calcite-block>
 
-        <!-- Animated Noise Contours -->
-        <calcite-block heading="Noise Contour Lines" open collapsible>
+        <!-- Noise Contour Lines -->
+        <calcite-block heading="Noise Contour Lines (65 dB)" open collapsible>
           <calcite-icon icon="line" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
-            Show 75 dB Contours
+            Show Contours
             <calcite-switch id="toggleContours"></calcite-switch>
           </calcite-label>
 
@@ -248,7 +248,20 @@
             </div>
           </calcite-label>
 
-          <p class="mode-note">1,000 polylines extracted from the raster at the 75 dB threshold via marching squares. Served from ArcGIS Online as a hosted Feature Service with pulsing glow.</p>
+          <div class="cls-legend" style="margin-top: 8px;">
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#ff6ec7; border-color:#ff6ec7;"></div>
+              <span class="cls-label">Aviation Noise</span>
+              <span class="cls-range">Near airports</span>
+            </div>
+            <div class="cls-item">
+              <div class="cls-swatch" style="background:#00e5ff; border-color:#00e5ff;"></div>
+              <span class="cls-label">Road / Rail Noise</span>
+              <span class="cls-range">Highways & rail</span>
+            </div>
+          </div>
+
+          <p class="mode-note">Polylines extracted at 65 dB via marching squares. Aviation contours identified within 8 km of FAA airports. Served from ArcGIS Online.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -316,13 +329,13 @@
 
   <script type="module">
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
-    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_75db_us_full/FeatureServer/0";
+    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_65db_aviation_roadrail/FeatureServer/0";
 
     const [
       Map, MapView, ImageryTileLayer, FeatureLayer,
       RasterStretchRenderer, RasterShadedReliefRenderer,
       MultipartColorRamp, AlgorithmicColorRamp, Color,
-      CIMSymbol, SimpleRenderer, esriId
+      CIMSymbol, UniqueValueRenderer, esriId
     ] = await $arcgis.import([
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
@@ -334,7 +347,7 @@
       "@arcgis/core/rest/support/AlgorithmicColorRamp.js",
       "@arcgis/core/Color.js",
       "@arcgis/core/symbols/CIMSymbol.js",
-      "@arcgis/core/renderers/SimpleRenderer.js",
+      "@arcgis/core/renderers/UniqueValueRenderer.js",
       "@arcgis/core/identity/IdentityManager.js"
     ]);
 
@@ -444,51 +457,56 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- 75dB Contour Polyline Layer (AGOL Feature Service) ----
-    const contourSymbol = new CIMSymbol({
-      data: {
-        type: "CIMSymbolReference",
-        symbol: {
-          type: "CIMLineSymbol",
-          symbolLayers: [
-            // Outer glow
-            {
-              type: "CIMSolidStroke",
-              enable: true,
-              width: 8,
-              color: [255, 120, 20, 40],
-              capStyle: "Round",
-              joinStyle: "Round"
-            },
-            // Main line
-            {
-              type: "CIMSolidStroke",
-              enable: true,
-              width: 2.5,
-              color: [255, 190, 60, 255],
-              capStyle: "Round",
-              joinStyle: "Round"
-            },
-            // Bright core
-            {
-              type: "CIMSolidStroke",
-              enable: true,
-              width: 1,
-              color: [255, 255, 200, 200],
-              capStyle: "Round",
-              joinStyle: "Round"
-            }
-          ]
+    // ---- 65dB Contour Polyline Layer with Aviation / Road-Rail symbology ----
+    function makeCIMLine(glowColor, mainColor, coreColor) {
+      return new CIMSymbol({
+        data: {
+          type: "CIMSymbolReference",
+          symbol: {
+            type: "CIMLineSymbol",
+            symbolLayers: [
+              { type: "CIMSolidStroke", enable: true, width: 8, color: glowColor, capStyle: "Round", joinStyle: "Round" },
+              { type: "CIMSolidStroke", enable: true, width: 2.5, color: mainColor, capStyle: "Round", joinStyle: "Round" },
+              { type: "CIMSolidStroke", enable: true, width: 1, color: coreColor, capStyle: "Round", joinStyle: "Round" }
+            ]
+          }
         }
-      }
-    });
+      });
+    }
+
+    // Aviation: hot pink/magenta glow
+    const aviationSymbol = makeCIMLine([255, 110, 199, 50], [255, 110, 199, 255], [255, 210, 240, 200]);
+    // Road/Rail: electric cyan/teal glow
+    const roadRailSymbol = makeCIMLine([0, 229, 255, 50], [0, 229, 255, 255], [180, 255, 255, 200]);
 
     const contourLayer = new FeatureLayer({
       url: CONTOUR_SERVICE,
-      title: "Noise Contours 75 dB",
+      title: "Noise Contours 65 dB",
       visible: false,
-      renderer: new SimpleRenderer({ symbol: contourSymbol }),
-      effect: "bloom(1.5, 0.4px, 0.1) brightness(1.2)"
+      renderer: new UniqueValueRenderer({
+        field: "source",
+        defaultSymbol: roadRailSymbol,
+        defaultLabel: "Other",
+        uniqueValueInfos: [
+          { value: "aviation", symbol: aviationSymbol, label: "Aviation Noise" },
+          { value: "road_rail", symbol: roadRailSymbol, label: "Road / Rail Noise" }
+        ]
+      }),
+      effect: "bloom(1.5, 0.4px, 0.1) brightness(1.2)",
+      popupTemplate: {
+        title: "{source} Noise Contour",
+        content: [
+          {
+            type: "fields",
+            fieldInfos: [
+              { fieldName: "source", label: "Noise Source" },
+              { fieldName: "airport_name", label: "Airport" },
+              { fieldName: "airport_code", label: "Airport Code" },
+              { fieldName: "threshold_db", label: "Threshold (dB)" }
+            ]
+          }
+        ]
+      }
     });
 
     // ---- Map & View ----
@@ -497,7 +515,7 @@
       container: "viewDiv", map,
       center: [-98.5, 39.5], zoom: 5,
       constraints: { minZoom: 3, maxZoom: 14 },
-      popup: { enabled: false }
+      popup: { defaultPopupTemplateEnabled: false }
     });
     view.ui.components = [];
 
