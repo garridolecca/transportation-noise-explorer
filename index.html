@@ -236,7 +236,7 @@
           <calcite-icon icon="line" slot="icon" scale="s"></calcite-icon>
 
           <calcite-label layout="inline-space-between">
-            Show 60 dB Contours
+            Show 75 dB Contours
             <calcite-switch id="toggleContours"></calcite-switch>
           </calcite-label>
 
@@ -248,7 +248,7 @@
             </div>
           </calcite-label>
 
-          <p class="mode-note">1,000 polylines extracted from the raster at the 60 dB threshold via marching squares. Served from ArcGIS Online as a hosted Feature Service with pulsing glow.</p>
+          <p class="mode-note">1,000 polylines extracted from the raster at the 75 dB threshold via marching squares. Served from ArcGIS Online as a hosted Feature Service with pulsing glow.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -316,7 +316,7 @@
 
   <script type="module">
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
-    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_60db_us_full/FeatureServer/0";
+    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_75db_us_full/FeatureServer/0";
 
     const [
       Map, MapView, ImageryTileLayer, FeatureLayer,
@@ -444,7 +444,7 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- 60dB Contour Polyline Layer (AGOL Feature Service) ----
+    // ---- 75dB Contour Polyline Layer (AGOL Feature Service) ----
     const contourSymbol = new CIMSymbol({
       data: {
         type: "CIMSymbolReference",
@@ -485,7 +485,7 @@
 
     const contourLayer = new FeatureLayer({
       url: CONTOUR_SERVICE,
-      title: "Noise Contours 60 dB",
+      title: "Noise Contours 75 dB",
       visible: false,
       renderer: new SimpleRenderer({ symbol: contourSymbol }),
       effect: "bloom(1.5, 0.4px, 0.1) brightness(1.2)"
