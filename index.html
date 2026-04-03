@@ -252,7 +252,7 @@
             <div class="cls-item">
               <div class="cls-swatch" style="background:#ffaa1e; border-color:#ffaa1e;"></div>
               <span class="cls-label">Aviation Noise</span>
-              <span class="cls-range">Within 3 mi of airport</span>
+              <span class="cls-range">Within 1 mi of airport</span>
             </div>
             <div class="cls-item">
               <div class="cls-swatch" style="background:#00e5ff; border-color:#00e5ff;"></div>
@@ -261,7 +261,7 @@
             </div>
           </div>
 
-          <p class="mode-note">1,000 polylines at 65 dB via marching squares. Cross-referenced against 19,615 FAA airports (3 mi proximity). Click a line for details.</p>
+          <p class="mode-note">1,000 polylines at 65 dB via marching squares. Cross-referenced against 19,615 FAA airports (1 mi proximity). Click a line for details.</p>
         </calcite-block>
 
         <!-- Layer Controls -->
@@ -329,7 +329,7 @@
 
   <script type="module">
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
-    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_65db_z8/FeatureServer/0";
+    const CONTOUR_SERVICE = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_65db_1mi/FeatureServer/0";
 
     const [
       Map, MapView, ImageryTileLayer, FeatureLayer,
