@@ -323,7 +323,7 @@
     const LAYER_URL = "https://tiledimageservices.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Transportation_Noise___Rail_Road_and_Aviation_2020/ImageServer";
 
     const [
-      Map, MapView, ImageryTileLayer, FeatureLayer,
+      Map, MapView, ImageryTileLayer, GeoJSONLayer,
       RasterStretchRenderer, RasterShadedReliefRenderer,
       MultipartColorRamp, AlgorithmicColorRamp, Color,
       CIMSymbol, SimpleRenderer
@@ -331,7 +331,7 @@
       "@arcgis/core/Map.js",
       "@arcgis/core/views/MapView.js",
       "@arcgis/core/layers/ImageryTileLayer.js",
-      "@arcgis/core/layers/FeatureLayer.js",
+      "@arcgis/core/layers/GeoJSONLayer.js",
       "@arcgis/core/renderers/RasterStretchRenderer.js",
       "@arcgis/core/renderers/RasterShadedReliefRenderer.js",
       "@arcgis/core/rest/support/MultipartColorRamp.js",
@@ -433,8 +433,8 @@
       effect: "bloom(2.5, 0.6px, 0.1) saturate(1.4) brightness(1.2)"
     });
 
-    // ---- Hosted 75dB Contour Polyline Layer ----
-    const CONTOUR_URL = "https://services2.arcgis.com/cPVqgcKAQtE6xCja/arcgis/rest/services/noise_contours_75db/FeatureServer/0";
+    // ---- 75dB Contour Polyline Layer (GeoJSON hosted on GitHub Pages) ----
+    const CONTOUR_URL = new URL("noise-contours-75db.geojson", window.location.href).href;
 
     function makeCIMLineSymbol(offset) {
       return new CIMSymbol({
@@ -492,7 +492,7 @@
       });
     }
 
-    const contourLayer = new FeatureLayer({
+    const contourLayer = new GeoJSONLayer({
       url: CONTOUR_URL,
       title: "Noise Contours 75 dB",
       visible: false,
